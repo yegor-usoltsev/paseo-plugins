@@ -1,0 +1,6 @@
+{
+  "id": "paseo-resume",
+  "requirements": {
+    "paseo": ">=0.10.3"
+  }
+}

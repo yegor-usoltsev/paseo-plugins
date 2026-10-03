@@ -1,0 +1,6 @@
+{
+  "id": "paseo-peer",
+  "requirements": {
+    "paseo": ">=0.10.3"
+  }
+}
