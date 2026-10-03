@@ -428,3 +428,21 @@ test("a queued attempt cannot resume a replacement job early", async (t) => {
   await h.tick(Date.parse(replacement!.resumeAt) - Date.now());
   assert.equal(h.sent.length, 2);
 });
+
+
+test("the observed Codex quota failure resumes even when usage reports only 98 percent", async (t) => {
+  const h = setup(t);
+  const reset = new Date(2026, 9, 3, 16, 6);
+  h.behavior.usage = async () => ({ providers: [{ providerId: "codex", windows: [{ usedPct: 98, resetsAt: reset.toISOString() }] }] });
+  await h.emit("agent.turn_ended", {
+    agent: { ...agent, provider: "codex" }, turnId: "codex-turn-5",
+    outcome: { kind: "failed", error: { message: "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 4:06 PM." } },
+    timeline: [],
+  });
+  assert.equal(h.store().get(agent.id)?.resumeAt, new Date(+reset + 120_000).toISOString());
+  assert.equal(h.store().get(agent.id)?.basis, "reset");
+  h.setSnapshot({ status: "idle", archivedAt: null, provider: "codex" });
+  await h.tick(+reset + 120_000 - Date.now());
+  assert.equal(h.sent.length, 1);
+  assert.deepEqual(h.sent[0].options, { activeTurnBehavior: "steer" });
+});
