@@ -1,4 +1,4 @@
-import type { PaseoAgentSendOptions, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
 import { wrap } from "../shared/envelope.ts";
 import type { SendRequest, SendResult } from "./socket";
 

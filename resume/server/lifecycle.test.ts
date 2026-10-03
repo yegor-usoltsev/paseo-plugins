@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "./sdk.ts";
 import type { PluginServerContext, PluginLifecycleEvents } from "@getpaseo/plugin/server";
 import contribute from "../index.server.ts";
 import { PendingStore } from "./pending.ts";

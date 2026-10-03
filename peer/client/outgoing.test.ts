@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
-import { outgoingMessage } from "./outgoing.ts";
+import { outgoingMessage, type ToolCallItem } from "./outgoing.ts";
 
 const id = "edd464fe-6761-4d1f-8075-deb619c0d3a1";
 const call = (name: string, status: string, text: string | null) =>
@@ -16,7 +15,7 @@ const call = (name: string, status: string, text: string | null) =>
       input: { to: "edd464fe", message: "Review abc123." },
       output: text === null ? null : { content: [{ type: "text", text }] },
     },
-  }) as unknown as AgentTimelineItem;
+  }) as unknown as ToolCallItem;
 
 test("a delivered Codex send names the resolved recipient", () => {
   assert.deepEqual(outgoingMessage(call("peer.send", "completed", `Delivered to Claude reviewer (${id}).`)), {

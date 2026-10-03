@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "./sdk.ts";
 import { deliver } from "./deliver.ts";
 
 const id = "11111111-1111-1111-1111-111111111111";

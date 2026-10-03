@@ -1,4 +1,8 @@
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
+// Paseo compiles plugins without their node_modules, so every type comes from
+// @getpaseo/plugin, which the host provides.
+import type { PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
+
+export type ToolCallItem = Parameters<PluginTimelineTransformerContribution<"tool_call">["transform"]>[0]["item"];
 
 // Codex names MCP tools "<server>.<tool>"; Claude Code names them "mcp__<server>__<tool>".
 const SEND_TOOL = /^(?:peer\.send|mcp__peer__send)$/;
@@ -27,7 +31,7 @@ function resultText(output: unknown): string | null {
 }
 
 /** Reads a peer.send tool call, or returns null for any other item. */
-export function outgoingMessage(item: AgentTimelineItem): OutgoingMessage | null {
+export function outgoingMessage(item: ToolCallItem): OutgoingMessage | null {
   if (item.type !== "tool_call" || !SEND_TOOL.test(item.name) || item.detail.type !== "unknown") return null;
   const input = item.detail.input as { to?: unknown; message?: unknown } | null;
   if (typeof input?.to !== "string" || typeof input.message !== "string") return null;

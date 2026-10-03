@@ -1,6 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { unwrap } from "./shared/envelope";
-import { outgoingMessage } from "./shared/outgoing";
+import { outgoingMessage } from "./client/outgoing";
 import { OutgoingMessageCard, outgoingSchema, PeerMessageCard, peerMessageSchema } from "./client/peer-message";
 
 export default function contribute(client: PluginClientContext) {

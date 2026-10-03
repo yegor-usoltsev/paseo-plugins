@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import type { PaseoAgentSendOptions, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
 import type { PluginHookAgent, PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { limitMessage, retryTimeFromMessage, retryTimeFromUsage } from "./server/limit.ts";
 import { runCli } from "./server/cli.ts";

@@ -1,4 +1,4 @@
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
+import type { AgentTimelineItem } from "./sdk.ts";
 import type { PluginTurnOutcome } from "@getpaseo/plugin/server";
 
 // Codex fails the turn with "You've hit your usage limit. ... try again at Sep
