@@ -7,7 +7,7 @@ Without it, an agent that hits its session limit at 2 a.m. sits idle until someo
 - **Knows the reset time.** It reads the reset from the usage windows Paseo reports for the provider, then from Claude's "resets" notice with its timezone or Codex's local "try again at" message. When neither gives one, it estimates 30 minutes and rechecks the usage API every five minutes after Paseo's cache expires. A known reset gets two minutes of margin.
 - **Visible and controllable.** While a resume is pending, a "Resumes in 12 min" pill sits above the agent's message box. It opens a popover with the exact time in your time zone, Try now, and Cancel this resume.
 - **Stays out of your way.** Sending the agent a message or archiving it cancels the pending resume. Short-lived API throttling and replies that merely discuss limits do not schedule one.
-- **Survives restarts.** Pending resumes are saved to disk and continue after a daemon restart. If a resume cannot reach the agent, it retries in five minutes.
+- **Survives restarts.** Pending resumes are saved to disk and continue after a daemon restart. Restored timers connect to the local daemon directly and always steer instead of interrupting a concurrent turn. If a resume cannot reach the agent, it retries in five minutes.
 - **Tells the parent.** When a resumed agent was started by another agent, the parent hears when the resumed turn finishes, because Paseo's own finish notification can be lost after a limit stop.
 
 ```text
@@ -20,7 +20,7 @@ Chat:   ── Resumed after usage limit at 4:08 PM ──
 
 ## Install
 
-You need Paseo 0.10.3 or later. On the daemon host, run:
+You need Paseo 0.10.3 or later and npm. GitHub installation prepares the locked runtime dependencies automatically. On the daemon host, run:
 
 ```sh
 paseo plugin install github:yegor-usoltsev/paseo-plugins:resume

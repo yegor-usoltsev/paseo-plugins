@@ -15,5 +15,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test server/*.test.ts client/*.test.ts"
+  },
+  "dependencies": {
+    "@getpaseo/client": "0.10.3",
+    "ws": "8.21.0"
   }
 }

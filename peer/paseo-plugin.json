@@ -2,5 +2,16 @@
   "id": "paseo-peer",
   "requirements": {
     "paseo": ">=0.10.3"
-  }
+  },
+  "build": [
+    [
+      "npm",
+      "ci",
+      "--workspaces=false",
+      "--omit=dev",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund"
+    ]
+  ]
 }

@@ -3,8 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import childProcess from "node:child_process";
-import { syncBuiltinESMExports } from "node:module";
 import type { PaseoApi } from "./sdk.ts";
 import type { PluginServerContext, PluginLifecycleEvents } from "@getpaseo/plugin/server";
 import contribute from "../index.server.ts";
@@ -21,7 +19,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function setup(t: TestContext, restored = false) {
+function setup(t: TestContext, restored = false, readiness?: Promise<void>) {
   const root = mkdtempSync(join(tmpdir(), "paseo-resume-test-"));
   const oldHome = process.env.PASEO_HOME;
   const oldState = process.env.XDG_STATE_HOME;
@@ -56,7 +54,7 @@ function setup(t: TestContext, restored = false) {
   const stop = contribute({
     on: (name: string, handler: any) => hooks.set(name, handler),
     handle: (contract: { name: string }, handler: any) => rpcs.set(contract.name, handler),
-  } as unknown as PluginServerContext);
+  } as unknown as PluginServerContext, () => ({ get: async () => { await readiness; return api; }, close: async () => {} }));
   t.after(() => {
     stop();
     if (oldHome === undefined) delete process.env.PASEO_HOME; else process.env.PASEO_HOME = oldHome;
@@ -184,49 +182,47 @@ test("a replacement turn does not inherit the resumed turn notification", async 
   assert.equal(h.sent.length, 1);
 });
 
-test("a restored job survives CLI failure and retries without an SDK context", async (t) => {
+test("a restored job retries failed SDK delivery before any hook or RPC", async (t) => {
   const h = setup(t, true);
-  let fail = true;
-  let sends = 0;
-  t.mock.method(childProcess, "execFile", (...args: any[]) => {
-    const callback = args.at(-1);
-    const argv = args[1] as string[];
-    if (argv.includes("inspect")) {
-      queueMicrotask(() => callback(null, JSON.stringify({ Status: "idle", Archived: false }), ""));
-    } else {
-      sends++;
-      queueMicrotask(() => callback(fail ? new Error("CLI unavailable") : null, "", ""));
-    }
-    return {};
-  });
-  syncBuiltinESMExports();
-  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  h.behavior.send = async () => { throw new Error("disconnected"); };
   await h.tick(0);
   assert.ok(h.store().get(agent.id));
-  assert.equal(sends, 1);
-  fail = false;
+  assert.equal(h.sent.length, 1);
+  h.behavior.send = async () => {};
   await h.tick(300_000);
-  assert.equal(sends, 2);
+  assert.equal(h.sent.length, 2);
+  assert.deepEqual(h.sent[1].options, { activeTurnBehavior: "steer" });
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-for (const snapshot of [{ Status: "running", Archived: false }, { Status: "idle", Archived: true }]) {
-  test(`a restored job skips an unavailable CLI recipient: ${JSON.stringify(snapshot)}`, async (t) => {
+for (const snapshot of [null, { status: "running", archivedAt: null }, { status: "idle", archivedAt: NOW.toISOString() }]) {
+  test(`a restored job skips an unavailable SDK recipient: ${JSON.stringify(snapshot)}`, async (t) => {
     const h = setup(t, true);
-    const calls: string[][] = [];
-    t.mock.method(childProcess, "execFile", (...args: any[]) => {
-      calls.push(args[1]);
-      queueMicrotask(() => args.at(-1)(null, JSON.stringify(snapshot), ""));
-      return {};
-    });
-    syncBuiltinESMExports();
-    t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+    h.setSnapshot(snapshot);
     await h.tick(0);
-    assert.equal(calls.length, 1);
-    assert.ok(calls[0].includes("inspect"));
+    assert.equal(h.sent.length, 0);
     assert.equal(h.store().get(agent.id), undefined);
   });
 }
+
+test("a cancelled restored job cannot send after startup connection resolves", async (t) => {
+  const gate = deferred();
+  const h = setup(t, true, gate.promise);
+  await h.tick(0);
+  await h.archive();
+  gate.resolve();
+  await flush();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.store().get(agent.id), undefined);
+});
+
+test("joining a concurrently started turn does not claim it was resumed", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  await h.tick();
+  await h.emit("agent.turn_ended", { agent, turnId: "user-turn", outcome: { kind: "completed" }, timeline: [] });
+  assert.equal(h.sent.length, 1);
+});
 
 test("the pending list reports the resume time and whether it is a guess", async (t) => {
   const h = setup(t);

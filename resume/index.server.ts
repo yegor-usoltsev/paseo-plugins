@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
 import type { PluginHookAgent, PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { limitMessage, retryTimeFromMessage, retryTimeFromUsage } from "./server/limit.ts";
-import { runCli } from "./server/cli.ts";
+import { connectDaemon } from "./server/connection.ts";
 import { PendingStore } from "./server/pending.ts";
 import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc.ts";
 import { STATUS_KIND, STATUS_ROW_ID, type ResumeStatus } from "./shared/status.ts";
@@ -26,8 +26,9 @@ const STEER = { activeTurnBehavior: "steer" } as PaseoAgentSendOptions;
 
 type Outcome = "sent" | "skipped" | "retrying";
 
-export default function contribute(server: PluginServerContext) {
+export default function contribute(server: PluginServerContext, connect = connectDaemon) {
   const paseoHome = process.env.PASEO_HOME ?? join(homedir(), ".paseo");
+  const connection = connect(paseoHome);
   const pending = new PendingStore(paseoHome);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const usageTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -70,9 +71,11 @@ export default function contribute(server: PluginServerContext) {
     if (!entry || entry.basis !== "estimate" || disposed) return;
     const epoch = epochOf(agentId);
     const current = () => !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
-    if (paseo) {
+    {
       try {
-        const handle = paseo.agents.ref(agentId);
+        const api = paseo ?? await connection.get();
+        if (!current()) return;
+        const handle = api.agents.ref(agentId);
         await handle.refresh();
         if (!current()) return;
         const agent = handle.current();
@@ -80,7 +83,7 @@ export default function contribute(server: PluginServerContext) {
           cancel(agentId, Boolean(agent && !agent.archivedAt));
           return;
         }
-        const usage = await paseo.providers.listUsage();
+        const usage = await api.providers.listUsage();
         if (!current()) return;
         const provider = agent.provider.split("/")[0];
         const windows = usage.providers.find((item) => item.providerId === provider)?.windows ?? [];
@@ -135,31 +138,18 @@ export default function contribute(server: PluginServerContext) {
     const current = () => !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
     const attempt = { parentId: entry.parentAgentId, rowId: entry.rowId, started: false, turnId: null as string | null };
     try {
-      if (paseo) {
-        const handle = paseo.agents.ref(agentId);
-        await handle.refresh();
-        if (!current()) return "skipped";
-        const agent = handle.current();
-        if (!agent || agent.archivedAt || agent.status === "running") {
-          cancel(agentId, Boolean(agent && !agent.archivedAt));
-          return "skipped";
-        }
-      } else {
-        // A restored job can outlive its agent or race a user's new turn.
-        const stdout = await runCli(paseoHome, ["agent", "inspect", agentId, "--json"]);
-        if (!current()) return "skipped";
-        const agent = JSON.parse(stdout);
-        if (agent.Archived || agent.Status === "running") {
-          cancel(agentId, !agent.Archived);
-          return "skipped";
-        }
+      const api = paseo ?? await connection.get();
+      if (!current()) return "skipped";
+      const handle = api.agents.ref(agentId);
+      await handle.refresh();
+      if (!current()) return "skipped";
+      const agent = handle.current();
+      if (!agent || agent.archivedAt || agent.status === "running") {
+        cancel(agentId, Boolean(agent && !agent.archivedAt));
+        return "skipped";
       }
       resuming.set(agentId, attempt);
-      if (paseo) {
-        await paseo.agents.ref(agentId).send(RESUME_PROMPT, STEER);
-      } else {
-        await runCli(paseoHome, ["send", "--no-wait", agentId, RESUME_PROMPT]);
-      }
+      await handle.send(RESUME_PROMPT, STEER);
       // The started/ended hooks may already have consumed this job and even
       // scheduled a new limit retry while send() was awaiting its response.
       if (current()) pending.delete(agentId);
@@ -232,7 +222,8 @@ export default function contribute(server: PluginServerContext) {
   server.on("agent.turn_ended", async ({ agent, turnId, outcome, timeline }, context) => {
     paseo = context.paseo;
     const attempt = resuming.get(agent.id);
-    const wasResumed = attempt && (!attempt.started || attempt.turnId === turnId);
+    const wasResumed = attempt?.started && attempt.turnId === turnId;
+    if (attempt && !attempt.started) resuming.delete(agent.id);
     if (wasResumed) resuming.delete(agent.id);
     const message = limitMessage(agent.provider, outcome, timeline);
     if (message) {
@@ -290,11 +281,12 @@ export default function contribute(server: PluginServerContext) {
     if (entry.basis === "estimate") armUsageCheck(agentId);
   }
 
-  return () => {
+  return async () => {
     disposed = true;
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
     for (const timer of usageTimers.values()) clearTimeout(timer);
     usageTimers.clear();
+    await connection.close();
   };
 }

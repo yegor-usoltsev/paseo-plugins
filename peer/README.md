@@ -18,7 +18,7 @@ Agent B sees:   From builder  7d10e2b8
 
 ## Install
 
-You need Paseo 0.10.3 or later. On the daemon host, run:
+You need Paseo 0.10.3 or later and npm. GitHub installation prepares the locked runtime dependencies automatically. On the daemon host, run:
 
 ```sh
 paseo plugin install github:yegor-usoltsev/paseo-plugins:peer

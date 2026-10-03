@@ -1,12 +1,14 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { deliver } from "./server/deliver";
-import { SHIM_SOURCE } from "./server/shim";
-import { listen, socketPath } from "./server/socket";
+import { deliver } from "./server/deliver.ts";
+import { connectDaemon } from "./server/connection.ts";
+import { SHIM_SOURCE } from "./server/shim.ts";
+import { listen, socketPath } from "./server/socket.ts";
 
-export default function contribute(server: PluginServerContext) {
+export default function contribute(server: PluginServerContext, connect = connectDaemon) {
   const path = socketPath(process.env.PASEO_HOME ?? join(homedir(), ".paseo"));
+  const connection = connect(process.env.PASEO_HOME ?? join(homedir(), ".paseo"));
   let paseo: Parameters<typeof deliver>[0] | null = null;
 
   // Give every new agent the `peer` MCP server.
@@ -30,8 +32,7 @@ export default function contribute(server: PluginServerContext) {
       },
     };
   });
-  // The SDK client reaches plugin code only through hook contexts. Agents
-  // start turns constantly, so one of these fires before any message is sent.
+  // Reuse the host connection as soon as a hook provides it.
   const capture = (_event: unknown, context: { paseo: Parameters<typeof deliver>[0] }) => {
     paseo = context.paseo;
   };
@@ -39,8 +40,10 @@ export default function contribute(server: PluginServerContext) {
   server.on("agent.turn_ended", capture);
 
   const close = listen(path, async (request) => {
-    if (!paseo) return { ok: false, text: "paseo-peer is still starting; retry in a moment." };
-    return deliver(paseo, request);
+    return deliver(paseo ?? await connection.get(), request);
   });
-  return close;
+  return async () => {
+    close();
+    await connection.close();
+  };
 }

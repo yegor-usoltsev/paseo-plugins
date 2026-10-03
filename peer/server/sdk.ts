@@ -1,5 +1,4 @@
-// Paseo compiles plugins without their node_modules, so every type comes from
-// @getpaseo/plugin, which the host provides.
+// Infer context types from the plugin SDK supplied by the host.
 import type { PluginHandlerContext, PluginLifecycleEvents } from "@getpaseo/plugin/server";
 
 export type PaseoApi = PluginHandlerContext["paseo"];
