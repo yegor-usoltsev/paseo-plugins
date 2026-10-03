@@ -7,6 +7,7 @@ import { connectDaemon, daemonTarget } from "./connection.ts";
 
 test("the daemon's own listen address selects TCP or Unix transport", () => {
   assert.deepEqual(daemonTarget("127.0.0.1:6767"), { url: "ws://127.0.0.1:6767/ws" });
+  assert.deepEqual(daemonTarget("127.0.0.1:80"), { url: "ws://127.0.0.1/ws" });
   assert.deepEqual(daemonTarget("0.0.0.0:17669"), { url: "ws://127.0.0.1:17669/ws" });
   assert.deepEqual(daemonTarget("[::]:6767"), { url: "ws://[::1]:6767/ws" });
   assert.deepEqual(daemonTarget("unix:///tmp/paseo.sock"), { url: "ws+unix:///tmp/paseo.sock:/ws", socketPath: "/tmp/paseo.sock" });

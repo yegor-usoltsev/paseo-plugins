@@ -15,7 +15,7 @@ export function daemonTarget(listen: string): { url: string; socketPath?: string
   }
   const endpoint = listen.replace(/^0\.0\.0\.0:/, "127.0.0.1:").replace(/^\[::\]:/, "[::1]:");
   const url = new URL(`ws://${endpoint}/ws`);
-  if (!url.port || url.username || url.password || url.search || url.hash) throw new Error("Invalid daemon listen address");
+  if (!/:\d+$/.test(endpoint) || url.username || url.password || url.search || url.hash) throw new Error("Invalid daemon listen address");
   return { url: url.toString() };
 }
 
