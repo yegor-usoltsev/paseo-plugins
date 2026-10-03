@@ -60,6 +60,44 @@ test("a try-again time without a date is its next occurrence", () => {
   assert.deepEqual(retryTimeFromMessage(midnight, new Date(2026, 9, 3, 23, 50)), new Date(2026, 9, 4, 0, 15));
 });
 
+test("Claude's named timezone controls the reset independently of the daemon TZ", (t) => {
+  const old = process.env.TZ;
+  t.after(() => { if (old === undefined) delete process.env.TZ; else process.env.TZ = old; });
+  for (const zone of ["UTC", "Europe/Minsk", "America/Los_Angeles"]) {
+    process.env.TZ = zone;
+    assert.deepEqual(
+      retryTimeFromMessage("You've hit your session limit · resets 11:40pm (Europe/Minsk)", new Date("2026-10-03T17:32:00Z")),
+      new Date("2026-10-03T20:40:00Z"),
+    );
+  }
+});
+
+test("Claude reset times cross midnight in the notice's timezone", () => {
+  assert.deepEqual(
+    retryTimeFromMessage("You've hit your limit · resets 12:15am (Europe/Minsk)", new Date("2026-10-03T20:50:00Z")),
+    new Date("2026-10-03T21:15:00Z"),
+  );
+  assert.deepEqual(
+    retryTimeFromMessage("You've hit your limit · resets 3am (UTC)", new Date("2026-10-03T04:00:00Z")),
+    new Date("2026-10-04T03:00:00Z"),
+  );
+});
+
+test("Claude reset times respect DST transitions and repeated hours", () => {
+  const notice = "You've hit your limit · resets 1:30am (America/New_York)";
+  assert.deepEqual(retryTimeFromMessage(notice, new Date("2026-11-01T05:45:00Z")), new Date("2026-11-01T06:30:00Z"));
+  assert.deepEqual(
+    retryTimeFromMessage("You've hit your limit · resets 2:30am (America/New_York)", new Date("2026-03-08T06:00:00Z")),
+    new Date("2026-03-09T06:30:00Z"),
+  );
+});
+
+test("invalid Claude zones and wall-clock times keep the fallback", () => {
+  for (const time of ["3am (Unknown/Zone)", "13pm (UTC)", "0am (UTC)", "3:60pm (UTC)"]) {
+    assert.equal(retryTimeFromMessage(`You've hit your limit · resets ${time}`, new Date("2026-10-03T12:00:00Z")), null);
+  }
+});
+
 test("the latest exhausted future window wins", () => {
   const now = new Date("2026-10-03T12:00:00Z");
   const windows = [

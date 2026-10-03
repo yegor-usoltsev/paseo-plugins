@@ -4,7 +4,7 @@ A [Paseo](https://paseo.sh) plugin that continues a Claude Code or Codex agent b
 
 Without it, an agent that hits its session limit at 2 a.m. sits idle until someone types "continue". With it, the agent picks up a couple of minutes after the reset, and the chat shows when that will happen and lets you change it.
 
-- **Knows the reset time.** It reads the reset from the usage windows Paseo reports for the provider, then from Codex's "try again at" message. When neither gives one, it tries again in 30 minutes. A known reset gets two minutes of margin.
+- **Knows the reset time.** It reads the reset from the usage windows Paseo reports for the provider, then from Claude's "resets" notice with its timezone or Codex's local "try again at" message. When neither gives one, it estimates 30 minutes and rechecks the usage API every five minutes after Paseo's cache expires. A known reset gets two minutes of margin.
 - **Visible and controllable.** While a resume is pending, a "Resumes in 12 min" pill sits above the agent's message box. It opens a popover with the exact time in your time zone, Try now, and Cancel this resume.
 - **Stays out of your way.** Sending the agent a message or archiving it cancels the pending resume. Short-lived API throttling and replies that merely discuss limits do not schedule one.
 - **Survives restarts.** Pending resumes are saved to disk and continue after a daemon restart. If a resume cannot reach the agent, it retries in five minutes.

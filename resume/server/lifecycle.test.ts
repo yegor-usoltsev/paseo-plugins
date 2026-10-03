@@ -34,7 +34,7 @@ function setup(t: TestContext, restored = false) {
   const hooks = new Map<string, (event: any, context: any) => unknown>();
   const sent: { id: string; text: string; options: unknown }[] = [];
   const rows: { rowId: string; state: string }[] = [];
-  let snapshot: { status: string; archivedAt: string | null } | null = { status: "idle", archivedAt: null };
+  let snapshot: { status: string; archivedAt: string | null; provider?: string } | null = { status: "idle", archivedAt: null, provider: "claude" };
   const behavior = {
     usage: async () => ({ providers: [{ providerId: "claude", windows: [{ usedPct: 100, resetsAt: new Date(+NOW + 1000).toISOString() }] }] }),
     refresh: async () => {},
@@ -66,7 +66,7 @@ function setup(t: TestContext, restored = false) {
   const emit = async <K extends keyof PluginLifecycleEvents>(name: K, event: PluginLifecycleEvents[K]) => {
     await hooks.get(name)!(event, { paseo: api });
   };
-  const limited = () => emit("agent.turn_ended", { agent, turnId: "limited", outcome: { kind: "completed" }, timeline: [{ type: "assistant_message", text: notice }] });
+  const limited = (text = notice) => emit("agent.turn_ended", { agent, turnId: "limited", outcome: { kind: "completed" }, timeline: [{ type: "assistant_message", text }] });
   const start = (turnId = "resumed") => emit("agent.turn_started", { agent, turnId });
   const archive = () => emit("agent.archived", { agent, archivedAt: NOW.toISOString() });
   const tick = async (ms = 121_000) => { t.mock.timers.tick(ms); await flush(); };
@@ -235,8 +235,62 @@ test("the pending list reports the resume time and whether it is a guess", async
     entries: [{ agentId: agent.id, jobId: h.store().get(agent.id)!.rowId, resumeAt: new Date(+NOW + 121_000).toISOString(), basis: "reset", attempting: false }],
   });
   h.behavior.usage = async () => ({ providers: [] });
-  await h.limited();
+  await h.limited("You've hit your usage limit");
   assert.equal((await h.call("list-pending")).entries[0].basis, "estimate");
+});
+
+test("Claude's zoned notice schedules a known reset with two minutes of margin", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [] });
+  await h.emit("agent.turn_ended", {
+    agent, turnId: "limited", outcome: { kind: "completed" },
+    timeline: [{ type: "assistant_message", text: "You've hit your session limit · resets 11:40pm (Europe/Minsk)" }],
+  });
+  assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T20:42:00.000Z");
+  assert.equal(h.store().get(agent.id)?.basis, "reset");
+});
+
+test("an estimated job rechecks expired usage and retains its job ID", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [] });
+  await h.limited("You've hit your usage limit");
+  const original = h.store().get(agent.id)!;
+  h.behavior.usage = async () => ({ providers: [{ providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T15:00:00Z" }] }] });
+  await h.tick(301_000);
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
+  assert.equal(h.store().get(agent.id)?.basis, "reset");
+  assert.equal(h.store().get(agent.id)?.rowId, original.rowId);
+  assert.deepEqual(h.rows.at(-1), { rowId: original.rowId, state: "scheduled" });
+});
+
+test("cancelling during a usage recheck cannot restore the estimated job", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [] });
+  await h.limited("You've hit your usage limit");
+  const gate = deferred();
+  h.behavior.usage = async () => { await gate.promise; return { providers: [{ providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T15:00:00Z" }] }] }; };
+  await h.tick(301_000);
+  await h.call("cancel-resume", { agentId: agent.id });
+  gate.resolve();
+  await flush();
+  assert.equal(h.store().get(agent.id), undefined);
+  await h.tick(30 * 60_000);
+  assert.equal(h.sent.length, 0);
+});
+
+test("a failed usage recheck retains the estimate and tries again", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [] });
+  await h.limited("You've hit your usage limit");
+  const original = h.store().get(agent.id);
+  h.behavior.usage = async () => { throw new Error("usage unavailable"); };
+  await h.tick(301_000);
+  assert.deepEqual(h.store().get(agent.id), original);
+  h.behavior.usage = async () => ({ providers: [{ providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T15:00:00Z" }] }] });
+  await h.tick(301_000);
+  assert.equal(h.store().get(agent.id)?.basis, "reset");
+  assert.equal(h.sent.length, 0);
 });
 
 test("cancelling from the client drops the pending resume", async (t) => {
@@ -374,7 +428,7 @@ test("a queued attempt cannot resume a replacement job early", async (t) => {
   await flush();
   assert.equal(h.sent.length, 1);
   assert.deepEqual(h.store().get(agent.id), replacement);
-  // The fixed usage window is now past, so this episode uses the fallback.
-  await h.tick(30 * 60_000);
+  // The usage window is past, so the replacement uses the notice's reset.
+  await h.tick(Date.parse(replacement!.resumeAt) - Date.now());
   assert.equal(h.sent.length, 2);
 });

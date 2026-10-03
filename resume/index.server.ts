@@ -16,6 +16,9 @@ const AFTER_RESET_MS = 2 * 60_000;
 // Used when neither the usage windows nor the message give a reset time.
 const FALLBACK_MS = 30 * 60_000;
 const RETRY_MS = 5 * 60_000;
+// Paseo 0.10.3 caches provider usage for five minutes without a public refresh
+// option. Recheck estimates after that cache has expired.
+const USAGE_REFRESH_MS = 5 * 60_000 + 1000;
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 // Steer never interrupts a running turn and starts a normal one on an idle
 // agent. The 0.10.3 SDK forwards this option but does not declare it.
@@ -27,6 +30,7 @@ export default function contribute(server: PluginServerContext) {
   const paseoHome = process.env.PASEO_HOME ?? join(homedir(), ".paseo");
   const pending = new PendingStore(paseoHome);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const usageTimers = new Map<string, ReturnType<typeof setTimeout>>();
   // Bumped whenever an agent's pending resume is cancelled, so a schedule()
   // still waiting on the usage lookup can tell it is stale.
   const epochs = new Map<string, number>();
@@ -55,10 +59,52 @@ export default function contribute(server: PluginServerContext) {
     timers.set(agentId, setTimeout(fire, Math.min(delay, MAX_TIMEOUT_MS)));
   }
 
+  function armUsageCheck(agentId: string): void {
+    clearTimeout(usageTimers.get(agentId));
+    usageTimers.set(agentId, setTimeout(() => void recheckUsage(agentId), USAGE_REFRESH_MS));
+  }
+
+  async function recheckUsage(agentId: string): Promise<void> {
+    usageTimers.delete(agentId);
+    const entry = pending.get(agentId);
+    if (!entry || entry.basis !== "estimate" || disposed) return;
+    const epoch = epochOf(agentId);
+    const current = () => !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
+    if (paseo) {
+      try {
+        const handle = paseo.agents.ref(agentId);
+        await handle.refresh();
+        if (!current()) return;
+        const agent = handle.current();
+        if (!agent || agent.archivedAt || agent.status === "running") {
+          cancel(agentId, Boolean(agent && !agent.archivedAt));
+          return;
+        }
+        const usage = await paseo.providers.listUsage();
+        if (!current()) return;
+        const provider = agent.provider.split("/")[0];
+        const windows = usage.providers.find((item) => item.providerId === provider)?.windows ?? [];
+        const reset = retryTimeFromUsage(windows, new Date());
+        if (reset) {
+          const resumeAt = new Date(reset.getTime() + AFTER_RESET_MS).toISOString();
+          pending.set(agentId, { ...entry, resumeAt, basis: "reset" });
+          arm(agentId, resumeAt);
+          await showStatus(agentId, entry.rowId, { state: "scheduled", at: resumeAt, basis: "reset" });
+          return;
+        }
+      } catch (error) {
+        console.error(`Cannot refresh provider usage for ${agentId}`, error);
+      }
+    }
+    if (current()) armUsageCheck(agentId);
+  }
+
   function cancel(agentId: string, show: boolean): void {
     epochs.set(agentId, epochOf(agentId) + 1);
     clearTimeout(timers.get(agentId));
     timers.delete(agentId);
+    clearTimeout(usageTimers.get(agentId));
+    usageTimers.delete(agentId);
     const entry = pending.get(agentId);
     if (pending.delete(agentId) && show) {
       void showStatus(agentId, entry?.rowId, { state: "cancelled", at: new Date().toISOString() });
@@ -81,6 +127,8 @@ export default function contribute(server: PluginServerContext) {
 
   async function attemptResume(agentId: string): Promise<Outcome> {
     timers.delete(agentId);
+    clearTimeout(usageTimers.get(agentId));
+    usageTimers.delete(agentId);
     const entry = pending.get(agentId);
     if (!entry || disposed) return "skipped";
     const epoch = epochOf(agentId);
@@ -150,6 +198,7 @@ export default function contribute(server: PluginServerContext) {
     const rowId = `resume-${randomUUID()}`;
     pending.set(agent.id, { resumeAt: resumeAt.toISOString(), parentAgentId: agent.parentAgentId, basis, rowId });
     arm(agent.id, resumeAt.toISOString());
+    if (basis === "estimate") armUsageCheck(agent.id);
     await showStatus(agent.id, rowId, { state: "scheduled", at: resumeAt.toISOString(), basis });
   }
 
@@ -236,11 +285,16 @@ export default function contribute(server: PluginServerContext) {
     return { ok: true, message: "Auto-resume cancelled." };
   });
 
-  for (const [agentId, entry] of pending.all()) arm(agentId, entry.resumeAt);
+  for (const [agentId, entry] of pending.all()) {
+    arm(agentId, entry.resumeAt);
+    if (entry.basis === "estimate") armUsageCheck(agentId);
+  }
 
   return () => {
     disposed = true;
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
+    for (const timer of usageTimers.values()) clearTimeout(timer);
+    usageTimers.clear();
   };
 }

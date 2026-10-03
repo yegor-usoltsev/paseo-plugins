@@ -9,6 +9,7 @@ import type { PluginTurnOutcome } from "@getpaseo/plugin/server";
 const CODEX_FAILURE = /^you['’]ve hit your usage limit(?:[.!]|$)/i;
 const NOTICE = /^(?:claude ai usage limit reached|you['’]ve hit your (?:(?:usage|session) )?limit)(?:\s*[·•|]\s*resets\b[^\n]*|\|\d+)?\.?$/i;
 const TRY_AGAIN_AT = /try again at (?:([A-Z][a-z]{2,8} \d{1,2})(?:st|nd|rd|th)?,? (\d{4}),? )?(\d{1,2}):(\d{2})\s*([AP]M)/i;
+const CLAUDE_RESET = /\bresets\s+(\d{1,2})(?::(\d{2}))?\s*([ap]m)\s*\(([^)]+)\)/i;
 
 /** Returns the limit message when the turn stopped on a usage limit. */
 export function limitMessage(provider: string, outcome: PluginTurnOutcome, timeline: readonly AgentTimelineItem[]): string | null {
@@ -26,11 +27,48 @@ export function limitMessage(provider: string, outcome: PluginTurnOutcome, timel
   return NOTICE.test(text) ? text : null;
 }
 
-/** Reads Codex's local "try again at" time from a limit message. */
+// Resolve a wall-clock time using the notice's zone, independently of the
+// daemon's TZ. Check both sides of a DST transition to retain repeated hours.
+function nextZonedTime(hour: number, minute: number, zone: string, now: Date): Date | null {
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    });
+  } catch {
+    return null;
+  }
+  const wallTime = (instant: number) => {
+    const parts = Object.fromEntries(formatter.formatToParts(instant).map(({ type, value }) => [type, Number(value)]));
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  };
+  const day = 24 * 60 * 60_000;
+  const today = new Date(wallTime(now.getTime()));
+  today.setUTCHours(hour, minute, 0, 0);
+  // A nonexistent spring-forward time is skipped until the next day.
+  for (let days = 0; days < 3; days++) {
+    const wanted = today.getTime() + days * day;
+    const offsets = new Set([-day, 0, day].map((delta) => wallTime(wanted + delta) - (wanted + delta)));
+    const candidates = [...offsets].map((offset) => wanted - offset)
+      .filter((instant) => instant > now.getTime() && wallTime(instant) === wanted);
+    if (candidates.length) return new Date(Math.min(...candidates));
+  }
+  return null;
+}
+
+/** Reads Claude's zoned reset or Codex's local "try again at" time. */
 export function retryTimeFromMessage(message: string, now: Date): Date | null {
+  const claude = CLAUDE_RESET.exec(message);
+  if (claude) {
+    const [, hour, minute = "0", half, zone] = claude;
+    if (Number(hour) < 1 || Number(hour) > 12 || Number(minute) > 59) return null;
+    return nextZonedTime(Number(hour) % 12 + (half.toUpperCase() === "PM" ? 12 : 0), Number(minute), zone.trim(), now);
+  }
   const match = TRY_AGAIN_AT.exec(message);
   if (!match) return null;
   const [, day, year, hour, minute, half] = match;
+  if (Number(hour) < 1 || Number(hour) > 12 || Number(minute) > 59) return null;
   const parsed = day ? new Date(`${day}, ${year}`) : new Date(now);
   if (Number.isNaN(parsed.getTime())) return null;
   parsed.setHours((Number(hour) % 12) + (half.toUpperCase() === "PM" ? 12 : 0), Number(minute), 0, 0);
