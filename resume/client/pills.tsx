@@ -9,7 +9,7 @@ import { createPendingMonitor } from "./pending-monitor";
 const EXPLANATIONS: Record<PendingEntry["basis"], string> = {
   reset: "The agent stopped on its usage limit, which resets shortly before this.",
   estimate: "The agent stopped on its usage limit. The reset time is unavailable.",
-  retry: "The last resume could not reach the agent.",
+  retry: "The last resume was deferred or could not reach the agent.",
 };
 
 /** Shows a composer pill on every agent waiting for its usage limit to reset. */

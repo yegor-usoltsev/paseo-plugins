@@ -76,7 +76,7 @@ function setup(t: TestContext, restored = false, readiness?: Promise<void>) {
   return { call, rows, stop, sent, behavior, store, emit, limited, start, archive, tick, setSnapshot: (value: typeof snapshot) => { snapshot = value; } };
 }
 
-for (const action of ["start", "archive", "stop"] as const) {
+for (const action of ["archive", "stop"] as const) {
   test(`${action} during usage lookup invalidates the schedule`, async (t) => {
     const h = setup(t);
     const gate = deferred();
@@ -116,7 +116,7 @@ test("a failed refresh retries instead of discarding the job", async (t) => {
   assert.equal(h.sent.length, 1);
 });
 
-for (const action of ["start", "archive", "stop"] as const) {
+for (const action of ["archive", "stop"] as const) {
   test(`${action} during refresh prevents delivery`, async (t) => {
     const h = setup(t);
     const gate = deferred();
@@ -150,7 +150,7 @@ test("a fast repeated limit is not deleted by the earlier send response", async 
   assert.ok(h.store().get(agent.id));
 });
 
-for (const state of [null, { status: "running", archivedAt: null }, { status: "idle", archivedAt: NOW.toISOString() }]) {
+for (const state of [null, { status: "idle", archivedAt: NOW.toISOString() }]) {
   test(`resume discards an unavailable recipient: ${JSON.stringify(state)}`, async (t) => {
     const h = setup(t);
     h.setSnapshot(state);
@@ -195,7 +195,7 @@ test("a restored job retries failed SDK delivery before any hook or RPC", async 
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-for (const snapshot of [null, { status: "running", archivedAt: null }, { status: "idle", archivedAt: NOW.toISOString() }]) {
+for (const snapshot of [null, { status: "idle", archivedAt: NOW.toISOString() }]) {
   test(`a restored job skips an unavailable SDK recipient: ${JSON.stringify(snapshot)}`, async (t) => {
     const h = setup(t, true);
     h.setSnapshot(snapshot);
@@ -315,6 +315,166 @@ test("resume now reports a busy agent instead of interrupting it", async (t) => 
   h.setSnapshot({ status: "running", archivedAt: null });
   assert.equal((await h.call("resume-now", { agentId: agent.id })).ok, false);
   assert.equal(h.sent.length, 0);
+  assert.ok(h.store().get(agent.id));
+});
+
+test("a message turn preserves the original continuation after its reply", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  const pending = h.store().get(agent.id);
+  await h.start("message");
+  await h.emit("agent.turn_ended", { agent, turnId: "message", outcome: { kind: "completed" }, timeline: [] });
+  assert.deepEqual(h.store().get(agent.id), pending);
+  assert.deepEqual(h.rows.map((row) => row.state), ["scheduled"]);
+  h.behavior.send = () => h.start();
+  await h.tick();
+  assert.equal(h.sent.length, 1);
+  assert.match(h.sent[0].text, /Continue where you left off/);
+  assert.deepEqual(h.sent[0].options, { activeTurnBehavior: "steer" });
+});
+
+test("a message arriving during usage lookup does not discard the resume", async (t) => {
+  const h = setup(t);
+  const gate = deferred();
+  const usage = h.behavior.usage;
+  h.behavior.usage = async () => { await gate.promise; return usage(); };
+  const scheduled = h.limited();
+  await h.start("message");
+  gate.resolve();
+  await scheduled;
+  assert.ok(h.store().get(agent.id));
+  await h.tick();
+  assert.equal(h.sent.length, 1);
+});
+
+test("a message failure leaves the original resume scheduled", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  await h.start("message");
+  await h.emit("agent.turn_ended", { agent, turnId: "message", outcome: { kind: "failed", error: { message: "Connection reset" } }, timeline: [] });
+  assert.ok(h.store().get(agent.id));
+  await h.tick();
+  assert.equal(h.sent.length, 1);
+});
+
+for (const restored of [false, true]) {
+  test(`a busy recipient retains its ${restored ? "restored" : "new"} resume until idle`, async (t) => {
+    const h = setup(t, restored);
+    if (!restored) await h.limited();
+    const pending = h.store().get(agent.id)!;
+    h.setSnapshot({ status: "running", archivedAt: null });
+    await h.tick(restored ? 0 : 121_000);
+    assert.equal(h.sent.length, 0);
+    assert.equal(h.store().get(agent.id)?.rowId, pending.rowId);
+    assert.ok(Date.parse(h.store().get(agent.id)!.resumeAt) > Date.now());
+    h.setSnapshot({ status: "idle", archivedAt: null });
+    await h.tick(300_000);
+    assert.equal(h.sent.length, 1);
+    assert.deepEqual(h.sent[0].options, { activeTurnBehavior: "steer" });
+  });
+}
+
+test("a message starting during refresh defers the resume without losing it", async (t) => {
+  const h = setup(t);
+  const gate = deferred();
+  h.behavior.refresh = () => gate.promise;
+  await h.limited();
+  await h.tick();
+  await h.start("message");
+  h.setSnapshot({ status: "running", archivedAt: null });
+  gate.resolve();
+  await flush();
+  assert.equal(h.sent.length, 0);
+  assert.ok(h.store().get(agent.id));
+  h.setSnapshot({ status: "idle", archivedAt: null });
+  await h.tick(300_000);
+  assert.equal(h.sent.length, 1);
+});
+
+test("usage rechecks keep the resume while a message turn is running", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [] });
+  await h.limited("You've hit your usage limit");
+  await h.start("message");
+  h.setSnapshot({ status: "running", archivedAt: null, provider: "claude" });
+  h.behavior.usage = async () => ({ providers: [{ providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T15:00:00Z" }] }] });
+  await h.tick(301_000);
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
+});
+
+test("an overdue resume retries as soon as the message turn ends", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  await h.start("message");
+  h.setSnapshot({ status: "running", archivedAt: null });
+  await h.tick();
+  assert.equal((await h.call("list-pending")).entries[0].attempting, false);
+  h.setSnapshot({ status: "idle", archivedAt: null });
+  await h.emit("agent.turn_ended", { agent, turnId: "message", outcome: { kind: "completed" }, timeline: [] });
+  h.behavior.send = () => h.start();
+  await h.tick(0);
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].id, agent.id);
+  await h.tick(300_000);
+  assert.equal(h.sent.length, 1);
+});
+
+test("Cancel while a message is running removes its deferred resume", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  await h.start("message");
+  h.setSnapshot({ status: "running", archivedAt: null });
+  await h.tick();
+  assert.equal((await h.call("cancel-resume", { agentId: agent.id })).ok, true);
+  h.setSnapshot({ status: "idle", archivedAt: null });
+  await h.emit("agent.turn_ended", { agent, turnId: "message", outcome: { kind: "completed" }, timeline: [] });
+  await h.tick(300_000);
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.store().get(agent.id), undefined);
+});
+
+test("Stop does not immediately restart a message turn", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  await h.start("message");
+  h.setSnapshot({ status: "running", archivedAt: null });
+  await h.tick();
+  h.setSnapshot({ status: "idle", archivedAt: null });
+  await h.emit("agent.turn_ended", { agent, turnId: "message", outcome: { kind: "canceled", reason: "user stopped" }, timeline: [] });
+  await h.tick(0);
+  assert.equal(h.sent.length, 0);
+  assert.ok(h.store().get(agent.id));
+  await h.tick(300_000);
+  assert.equal(h.sent.length, 1);
+});
+
+test("another limit reschedules the old row without cancelling auto-resume", async (t) => {
+  const h = setup(t);
+  await h.limited();
+  const first = h.store().get(agent.id)!;
+  await h.start("message");
+  await h.limited();
+  assert.notEqual(h.store().get(agent.id)?.rowId, first.rowId);
+  assert.deepEqual(h.rows.map((row) => row.state), ["scheduled", "rescheduled", "scheduled"]);
+  assert.equal(h.rows[1].rowId, first.rowId);
+});
+
+test("an earlier usage lookup cannot overwrite a later limit episode", async (t) => {
+  const h = setup(t);
+  const gate = deferred();
+  let calls = 0;
+  h.behavior.usage = async () => {
+    if (++calls === 1) await gate.promise;
+    return { providers: [] };
+  };
+  const earlier = h.limited("You've hit your usage limit");
+  await h.start("message");
+  await h.limited();
+  const latest = h.store().get(agent.id);
+  gate.resolve();
+  await earlier;
+  assert.deepEqual(h.store().get(agent.id), latest);
 });
 
 test("each limit stop keeps its own chat row", async (t) => {

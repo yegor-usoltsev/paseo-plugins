@@ -10,7 +10,7 @@ export const basisSchema = z.enum(["reset", "estimate", "retry"]);
 export type ResumeBasis = z.output<typeof basisSchema>;
 
 export const statusSchema = z.object({
-  state: z.enum(["scheduled", "resumed", "cancelled"]),
+  state: z.enum(["scheduled", "resumed", "cancelled", "rescheduled"]),
   at: z.string(),
   basis: basisSchema.optional(),
 });

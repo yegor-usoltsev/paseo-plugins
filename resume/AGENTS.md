@@ -10,4 +10,6 @@ Provider usage is the primary reset source. Paseo 0.10.3 caches it for five minu
 
 Pending records survive plugin reload. Treat every await in scheduling and delivery as a cancellation boundary. A send response can arrive after the resumed turn has already ended and scheduled its next retry, so never delete a record solely by agent ID after an await.
 
+Messages and foreign turns preserve pending resumes. A new limit episode invalidates older asynchronous work; explicit Cancel and archiving remove the job. Busy recipients defer delivery, and their turn-end event retries an overdue resume. Only the turn started by this plugin inherits its parent notification.
+
 The agent-directory subscription defaults to 200 entries. Restore composer controls from the pending RPC and fetch missing workspace placement by agent ID. Failed queries retain the confirmed schedule but disable actions; an action requires a fresh query after any older query settles. Only a server-reported attempt for the same pending record may read "Resuming…". Actions carry the displayed job ID so stale clients cannot act on a later limit episode; retries retain that ID.

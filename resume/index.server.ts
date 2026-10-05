@@ -24,7 +24,7 @@ const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 // agent. The 0.10.3 SDK forwards this option but does not declare it.
 const STEER = { activeTurnBehavior: "steer" } as PaseoAgentSendOptions;
 
-type Outcome = "sent" | "skipped" | "retrying";
+type Outcome = "sent" | "skipped" | "retrying" | "busy";
 
 export default function contribute(server: PluginServerContext, connect = connectDaemon) {
   const paseoHome = process.env.PASEO_HOME ?? join(homedir(), ".paseo");
@@ -79,7 +79,7 @@ export default function contribute(server: PluginServerContext, connect = connec
         await handle.refresh();
         if (!current()) return;
         const agent = handle.current();
-        if (!agent || agent.archivedAt || agent.status === "running") {
+        if (!agent || agent.archivedAt) {
           cancel(agentId, Boolean(agent && !agent.archivedAt));
           return;
         }
@@ -102,12 +102,17 @@ export default function contribute(server: PluginServerContext, connect = connec
     if (current()) armUsageCheck(agentId);
   }
 
-  function cancel(agentId: string, show: boolean): void {
+  function invalidate(agentId: string): number {
     epochs.set(agentId, epochOf(agentId) + 1);
     clearTimeout(timers.get(agentId));
     timers.delete(agentId);
     clearTimeout(usageTimers.get(agentId));
     usageTimers.delete(agentId);
+    return epochOf(agentId);
+  }
+
+  function cancel(agentId: string, show: boolean): void {
+    invalidate(agentId);
     const entry = pending.get(agentId);
     if (pending.delete(agentId) && show) {
       void showStatus(agentId, entry?.rowId, { state: "cancelled", at: new Date().toISOString() });
@@ -144,9 +149,16 @@ export default function contribute(server: PluginServerContext, connect = connec
       await handle.refresh();
       if (!current()) return "skipped";
       const agent = handle.current();
-      if (!agent || agent.archivedAt || agent.status === "running") {
+      if (!agent || agent.archivedAt) {
         cancel(agentId, Boolean(agent && !agent.archivedAt));
         return "skipped";
+      }
+      if (agent.status === "running") {
+        const retryAt = new Date(Date.now() + RETRY_MS).toISOString();
+        pending.set(agentId, { ...entry, resumeAt: retryAt, basis: "retry" });
+        arm(agentId, retryAt);
+        await showStatus(agentId, entry.rowId, { state: "scheduled", at: retryAt, basis: "retry" });
+        return "busy";
       }
       resuming.set(agentId, attempt);
       await handle.send(RESUME_PROMPT, STEER);
@@ -167,7 +179,10 @@ export default function contribute(server: PluginServerContext, connect = connec
   }
 
   async function schedule(agent: PluginHookAgent, message: string, api: PaseoApi): Promise<void> {
-    const epoch = epochOf(agent.id);
+    // A later limit stop supersedes any earlier lookup or delivery, while
+    // ordinary messages leave the scheduled continuation intact.
+    const epoch = invalidate(agent.id);
+    const previous = pending.get(agent.id);
     const now = new Date();
     const provider = agent.provider.split("/")[0];
     let resetAt: Date | null = null;
@@ -178,7 +193,7 @@ export default function contribute(server: PluginServerContext, connect = connec
     } catch (error) {
       console.error("Cannot read provider usage", error);
     }
-    // A new turn, an archive or a plugin stop during the lookup wins.
+    // Cancellation, a later limit stop or plugin shutdown wins this lookup.
     if (disposed || epochOf(agent.id) !== epoch) return;
     resetAt ??= retryTimeFromMessage(message, now);
     const basis = !resetAt || resetAt <= now ? "estimate" : "reset";
@@ -189,6 +204,10 @@ export default function contribute(server: PluginServerContext, connect = connec
     pending.set(agent.id, { resumeAt: resumeAt.toISOString(), parentAgentId: agent.parentAgentId, basis, rowId });
     arm(agent.id, resumeAt.toISOString());
     if (basis === "estimate") armUsageCheck(agent.id);
+    if (previous?.rowId) {
+      await showStatus(agent.id, previous.rowId, { state: "rescheduled", at: resumeAt.toISOString(), basis });
+      if (disposed || epochOf(agent.id) !== epoch || pending.get(agent.id)?.rowId !== rowId) return;
+    }
     await showStatus(agent.id, rowId, { state: "scheduled", at: resumeAt.toISOString(), basis });
   }
 
@@ -212,10 +231,8 @@ export default function contribute(server: PluginServerContext, connect = connec
       cancel(agent.id, false);
       void showStatus(agent.id, attempt.rowId, { state: "resumed", at: new Date().toISOString() });
     } else {
-      // Only the first start acknowledges our send; a subsequent start is a
-      // user's replacement turn and must not inherit its parent notification.
+      // A message turn must not inherit our resume's parent notification.
       resuming.delete(agent.id);
-      cancel(agent.id, true);
     }
   });
 
@@ -228,8 +245,14 @@ export default function contribute(server: PluginServerContext, connect = connec
     const message = limitMessage(agent.provider, outcome, timeline);
     if (message) {
       await schedule(agent, message, context.paseo);
-    } else if (wasResumed && attempt.parentId && outcome.kind !== "canceled") {
-      await notifyParent(attempt.parentId, agent.id, outcome, context.paseo);
+    } else {
+      const entry = pending.get(agent.id);
+      if (outcome.kind !== "canceled" && entry && (entry.basis === "retry" || Date.parse(entry.resumeAt) <= Date.now())) {
+        arm(agent.id, new Date().toISOString());
+      }
+      if (wasResumed && attempt.parentId && outcome.kind !== "canceled") {
+        await notifyParent(attempt.parentId, agent.id, outcome, context.paseo);
+      }
     }
   });
 
@@ -262,8 +285,10 @@ export default function contribute(server: PluginServerContext, connect = connec
         return { ok: true, message: "Resumed." };
       case "retrying":
         return { ok: false, message: "Could not reach the agent; the next attempt is in five minutes." };
+      case "busy":
+        return { ok: false, message: "The agent is working; auto-resume remains scheduled until its turn ends." };
       default:
-        return { ok: false, message: "The agent is already working or was archived, so auto-resume was cancelled." };
+        return { ok: false, message: "The agent is unavailable or the resume schedule changed." };
     }
   });
 
