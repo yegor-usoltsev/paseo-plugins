@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PaseoApi } from "./sdk.ts";
 import { deliver } from "./deliver.ts";
+import { unwrap } from "../shared/envelope.ts";
 
 const id = "11111111-1111-1111-1111-111111111111";
 function fixture(pages: { id: string; title: string | null }[][], archivedAt: string | null = null) {
@@ -27,6 +28,15 @@ test("full IDs are fetched directly and delivery always steers", async () => {
   await deliver(h.api, { from: "sender", to: id, message: "hello" });
   assert.deepEqual(h.cursors, []);
   assert.deepEqual(h.sent, [{ id, text: "[from:sender]\nhello", options: { activeTurnBehavior: "steer" } }]);
+});
+
+test("delivery preserves Unicode, whitespace, and numeric text verbatim", async () => {
+  const h = fixture([]);
+  const message = "Финальный мой proposal: 43 lines (668 words vs 575).\r\n\r\n  git apply --check\n\tPaths: /tmp/a b/changes.patch\nEmoji: 👋; Unicode: café\n";
+  await deliver(h.api, { from: "sender", to: id, message });
+  const [sent] = h.sent as { text: string }[];
+  assert.equal(sent.text, `[from:sender]\n${message}`);
+  assert.deepEqual(unwrap(sent.text), { senderId: "sender", body: message });
 });
 
 test("prefixes resolve beyond the first page", async () => {

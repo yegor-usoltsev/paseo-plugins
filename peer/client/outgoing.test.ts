@@ -70,3 +70,13 @@ test("an MCP error result is not successful delivery", () => {
 test("an untitled recipient still exposes its resolved ID", () => {
   assert.equal(outgoingMessage(call("peer.send", "completed", `Delivered to ${id}.`))?.recipientId, id);
 });
+
+test("outgoing cards retain whitespace and Unicode for both providers", () => {
+  const body = "Финальный мой proposal: 43 lines (668 words vs 575).\n\n  git apply --check\r\n\t👋 café\n";
+  for (const name of ["peer.send", "mcp__peer__send"]) {
+    const item = call(name, "completed", `Delivered to ${id}.`);
+    if (item.type !== "tool_call" || item.detail.type !== "unknown") throw new Error("bad fixture");
+    item.detail.input = { to: id, message: body };
+    assert.equal(outgoingMessage(item)?.body, body);
+  }
+});

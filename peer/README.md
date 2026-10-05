@@ -12,7 +12,7 @@ Paseo's own `send_agent_prompt` tool and `paseo send` command interrupt a runnin
 ```text
 Agent A calls:  peer.send(to: "3f2a91c4", message: "Review abc123 when you reach a stopping point.")
 Tool returns:   Delivered to reviewer (3f2a91c4-…).
-Agent B sees:   From builder  7d10e2b8
+Agent B sees:   From Codex  7d10e2b8
                 Review abc123 when you reach a stopping point.
 ```
 
@@ -40,6 +40,8 @@ When you finish a part, send its commit to the reviewer with peer.send and keep 
 - **`message`**: the text to deliver.
 
 It returns once Paseo has accepted the message, not when the recipient has read it. Sending to yourself or to an archived agent fails with an explanation.
+
+Cards identify agents by provider and the first eight characters of their ID, so identical or long session titles do not crowd the header. When agent metadata is unavailable, cards show "Agent" and the short ID. The full session title, when available, appears on hover in web and desktop clients; clicking the short ID copies the full ID. An unresolved recipient's name is limited to 24 characters, with the original address on hover. Message text is delivered and displayed verbatim, including whitespace and Unicode. If a sender omits spaces or line breaks, the plugin preserves that text too.
 
 ## How it works
 

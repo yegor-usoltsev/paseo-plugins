@@ -28,21 +28,23 @@ const WRAP_ANYWHERE = (Platform.OS === "web" ? { overflowWrap: "anywhere" } : {}
 const FOLDED_LINES = 12;
 const isLong = (text: string) => text.split("\n").length > FOLDED_LINES || text.length > 1200;
 
-function useAgentName(agentId: string): string {
-  const title = useAgent(agentId, (agent) => agent.title);
-  return title ?? `agent ${agentId.slice(0, 8)}`;
+function useAgentIdentity(agentId: string) {
+  const agent = useAgent(agentId, (agent) => ({ provider: agent.provider, title: agent.title }));
+  const providers: Record<string, string> = { codex: "Codex", claude: "Claude", opencode: "OpenCode", pi: "Pi" };
+  return { name: providers[agent?.provider ?? ""] ?? "Agent", title: agent?.title ?? undefined };
 }
 
 interface CardProps extends PluginHostProps {
   icon: string;
   heading: string;
+  title?: string;
   agentId: string | null;
   body: string;
   timestamp: Date;
   footer?: { text: string; tone: "muted" | "danger" };
 }
 
-function MessageCard({ icon, heading, agentId, body, timestamp, footer, theme }: CardProps) {
+function MessageCard({ icon, heading, title, agentId, body, timestamp, footer, theme }: CardProps) {
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const folded = isLong(body);
@@ -54,13 +56,20 @@ function MessageCard({ icon, heading, agentId, body, timestamp, footer, theme }:
       () => toast.error(`Cannot copy the ${what.toLowerCase()}`),
     );
   const action = { color: colors.foregroundMuted, fontSize: 12 };
+  const headingText = (
+    <Text
+      numberOfLines={1}
+      accessibilityHint={title}
+      style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", flexShrink: 1 }}
+    >
+      {heading}
+    </Text>
+  );
   return (
     <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Icon name={icon} size={14} color={colors.foregroundMuted} />
-        <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", flexShrink: 1 }}>
-          {heading}
-        </Text>
+        {Platform.OS === "web" ? <span title={title} style={{ minWidth: 0, flexShrink: 1 }}>{headingText}</span> : headingText}
         {agentId ? (
           <Pressable
             accessibilityRole="button"
@@ -100,15 +109,15 @@ function MessageCard({ icon, heading, agentId, body, timestamp, footer, theme }:
 
 export function PeerMessageCard({ item, timestamp, ...host }: PluginTimelineItemProps<PeerMessage>) {
   const { senderId, body } = item.data;
-  const name = useAgentName(senderId);
-  return <MessageCard {...host} icon="MessageSquare" heading={`From ${name}`} agentId={senderId} body={body} timestamp={timestamp} />;
+  const { name, title } = useAgentIdentity(senderId);
+  return <MessageCard {...host} icon="MessageSquare" heading={`From ${name}`} title={title} agentId={senderId} body={body} timestamp={timestamp} />;
 }
 
 export function OutgoingMessageCard({ item, timestamp, ...host }: PluginTimelineItemProps<Outgoing>) {
   const { to, recipientId, body, status, error } = item.data;
   const id = recipientId ?? (FULL_ID.test(to) ? to : null);
-  const title = useAgent(id ?? to, (agent) => agent.title);
-  const name = title ?? (id ? `agent ${id.slice(0, 8)}` : to);
+  const { name, title } = useAgentIdentity(id ?? to);
+  const recipient = id ? name : to.length > 24 ? `${to.slice(0, 23)}…` : to;
   const footer =
     status === "failed"
       ? { text: error ?? "Not delivered.", tone: "danger" as const }
@@ -116,6 +125,6 @@ export function OutgoingMessageCard({ item, timestamp, ...host }: PluginTimeline
         ? { text: "Sending…", tone: "muted" as const }
         : undefined;
   return (
-    <MessageCard {...host} icon="Send" heading={`To ${name}`} agentId={id} body={body} timestamp={timestamp} footer={footer} />
+    <MessageCard {...host} icon="Send" heading={`To ${recipient}`} title={title ?? to} agentId={id} body={body} timestamp={timestamp} footer={footer} />
   );
 }
