@@ -78,6 +78,7 @@ export function retryTimeFromMessage(message: string, now: Date): Date | null {
 }
 
 interface UsageWindow {
+  id?: string;
   usedPct?: number | null;
   remainingPct?: number | null;
   resetsAt?: string | null;
@@ -89,16 +90,21 @@ interface ProviderUsage {
   windows: readonly UsageWindow[];
 }
 
+// Model, feature and code-review quotas. Codex 0.11 prefixes their IDs with a
+// scope ("limit:<feature>:five_hour"), Claude 0.11 names them
+// "weekly_<model|surface>_<id>", and Codex 0.10 reports "code_review".
+const SCOPED_WINDOW = /:|^weekly_|^code_review$/;
+
 /**
  * The provider's windows that bound any of its agents. Paseo 0.11 lists each
  * discovered account under the same provider ID without saying which one an
- * agent uses, so several entries are ambiguous. It also lists model and feature
- * quotas; when summary flags are present, only those windows apply to every agent.
+ * agent uses, so several entries are ambiguous. Scoped quotas never apply to
+ * every agent; when summary flags are present, only those windows do.
  */
 export function providerWindows(providers: readonly ProviderUsage[], provider: string): readonly UsageWindow[] {
   const entries = providers.filter((entry) => entry.providerId === provider);
   if (entries.length !== 1) return [];
-  const windows = entries[0].windows;
+  const windows = entries[0].windows.filter((window) => !window.id || !SCOPED_WINDOW.test(window.id));
   return windows.some((window) => window.summary) ? windows.filter((window) => window.summary) : windows;
 }
 

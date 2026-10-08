@@ -137,6 +137,17 @@ test("model and feature quotas are ignored when summary windows are flagged", ()
   assert.equal(providerWindows([{ providerId: "codex", windows: unflagged }], "codex").length, 4);
 });
 
+test("reports with only scoped quotas give no usage windows", () => {
+  const scoped = (id: string) => ({ id, usedPct: 100, resetsAt: "2026-10-03T18:00:00Z" });
+  // Paseo 0.11 omits the summary flag from scoped windows rather than setting it false.
+  const codex = [scoped("limit:other-model:five_hour"), scoped("code_review:weekly")];
+  const claude = [scoped("weekly_model_opus"), scoped("weekly_surface_web")];
+  assert.deepEqual(providerWindows([{ providerId: "codex", windows: codex }], "codex"), []);
+  assert.deepEqual(providerWindows([{ providerId: "claude", windows: claude }], "claude"), []);
+  const legacy = [{ id: "session", usedPct: 100, resetsAt: "2026-10-03T13:00:00Z" }, scoped("code_review")];
+  assert.deepEqual(providerWindows([{ providerId: "codex", windows: legacy }], "codex"), [legacy[0]]);
+});
+
 
 test("usage-limit detection is scoped to provider notice forms", () => {
   for (const provider of ["codex", "claude", "other"]) {
