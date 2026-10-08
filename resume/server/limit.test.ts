@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { limitMessage, retryTimeFromMessage, retryTimeFromUsage } from "./limit.ts";
+import { limitMessage, providerWindows, retryTimeFromMessage, retryTimeFromUsage } from "./limit.ts";
 
 const codex =
   "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 26th, 2026 11:33 AM.";
@@ -108,6 +108,33 @@ test("the latest exhausted future window wins", () => {
   ];
   assert.deepEqual(retryTimeFromUsage(windows, now), new Date("2026-10-05T00:00:00Z"));
   assert.equal(retryTimeFromUsage([{ usedPct: 40, resetsAt: "2026-10-03T13:00:00Z" }], now), null);
+});
+
+test("several accounts of one provider give no usage windows", () => {
+  const window = { usedPct: 100, resetsAt: "2026-10-03T15:00:00Z" };
+  const providers = [
+    { providerId: "codex", windows: [window] },
+    { providerId: "codex", windows: [{ ...window, resetsAt: "2026-10-03T18:00:00Z" }] },
+    { providerId: "claude", windows: [window] },
+  ];
+  assert.deepEqual(providerWindows(providers, "codex"), []);
+  assert.deepEqual(providerWindows(providers, "claude"), [window]);
+  assert.deepEqual(providerWindows(providers, "other"), []);
+});
+
+test("model and feature quotas are ignored when summary windows are flagged", () => {
+  const now = new Date("2026-10-03T12:00:00Z");
+  const windows = [
+    { usedPct: 100, resetsAt: "2026-10-03T13:00:00Z", summary: true },
+    { usedPct: 10, resetsAt: "2026-10-08T00:00:00Z", summary: true },
+    { usedPct: 100, resetsAt: "2026-10-03T18:00:00Z", summary: false },
+    { usedPct: 100, resetsAt: "2026-10-04T00:00:00Z" },
+  ];
+  const applicable = providerWindows([{ providerId: "codex", windows }], "codex");
+  assert.deepEqual(retryTimeFromUsage(applicable, now), new Date("2026-10-03T13:00:00Z"));
+  // Paseo 0.10 reports no summary flags, so every window still applies.
+  const unflagged = windows.map(({ summary: _, ...window }) => window);
+  assert.equal(providerWindows([{ providerId: "codex", windows: unflagged }], "codex").length, 4);
 });
 
 

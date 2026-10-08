@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
 import type { PluginHookAgent, PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
-import { limitMessage, retryTimeFromMessage, retryTimeFromUsage } from "./server/limit.ts";
+import { limitMessage, providerWindows, retryTimeFromMessage, retryTimeFromUsage } from "./server/limit.ts";
 import { connectDaemon } from "./server/connection.ts";
 import { PendingStore } from "./server/pending.ts";
 import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc.ts";
@@ -86,8 +86,7 @@ export default function contribute(server: PluginServerContext, connect = connec
         const usage = await api.providers.listUsage();
         if (!current()) return;
         const provider = agent.provider.split("/")[0];
-        const windows = usage.providers.find((item) => item.providerId === provider)?.windows ?? [];
-        const reset = retryTimeFromUsage(windows, new Date());
+        const reset = retryTimeFromUsage(providerWindows(usage.providers, provider), new Date());
         if (reset) {
           const resumeAt = new Date(reset.getTime() + AFTER_RESET_MS).toISOString();
           pending.set(agentId, { ...entry, resumeAt, basis: "reset" });
@@ -188,8 +187,7 @@ export default function contribute(server: PluginServerContext, connect = connec
     let resetAt: Date | null = null;
     try {
       const usage = await api.providers.listUsage();
-      const windows = usage.providers.find((entry) => entry.providerId === provider)?.windows ?? [];
-      resetAt = retryTimeFromUsage(windows, now);
+      resetAt = retryTimeFromUsage(providerWindows(usage.providers, provider), now);
     } catch (error) {
       console.error("Cannot read provider usage", error);
     }

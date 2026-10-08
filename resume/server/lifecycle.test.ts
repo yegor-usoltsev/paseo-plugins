@@ -246,6 +246,20 @@ test("Claude's zoned notice schedules a known reset with two minutes of margin",
   assert.equal(h.store().get(agent.id)?.basis, "reset");
 });
 
+test("ambiguous multi-account usage defers to the notice's reset", async (t) => {
+  const h = setup(t);
+  h.behavior.usage = async () => ({ providers: [
+    { providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T18:00:00Z" }] },
+    { providerId: "claude", windows: [{ usedPct: 100, resetsAt: "2026-10-03T13:00:00Z" }] },
+  ] });
+  await h.emit("agent.turn_ended", {
+    agent, turnId: "limited", outcome: { kind: "completed" },
+    timeline: [{ type: "assistant_message", text: "You've hit your session limit · resets 1pm (UTC)" }],
+  });
+  assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T13:02:00.000Z");
+  assert.equal(h.store().get(agent.id)?.basis, "reset");
+});
+
 test("an estimated job rechecks expired usage and retains its job ID", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });

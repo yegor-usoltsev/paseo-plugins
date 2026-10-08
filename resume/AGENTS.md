@@ -4,7 +4,7 @@ The installed SDK is 0.10.3. The daemon accepts `activeTurnBehavior: "steer"`, b
 
 Startup connections discover only `$PASEO_HOME/paseo.pid` and read that home’s local credential through the SDK auth callback. Never fall back to a default port or a shell CLI. Connection failures retain jobs and retry in five minutes. Only the host-provided SDK can append plugin timeline rows.
 
-Provider usage is the primary reset source. Paseo 0.10.3 caches it for five minutes and the public SDK cannot force a refresh, so estimated jobs recheck after cache expiry. Claude notice times carry their own IANA timezone; never interpret them in the daemon's timezone. Run limit and lifecycle tests under both `TZ=UTC` and `TZ=Europe/Minsk` after reset-time changes.
+Provider usage is the primary reset source. Paseo 0.10.3 caches it for five minutes and the public SDK cannot force a refresh, so estimated jobs recheck after cache expiry. Since Paseo 0.11 the usage list has one entry per discovered account under the same provider ID, and the public SDK cannot tell which account an agent uses: treat several entries as no usage. When windows carry `summary` flags, only summary windows bound every agent; model and feature quotas do not. Claude notice times carry their own IANA timezone; never interpret them in the daemon's timezone. Run limit and lifecycle tests under both `TZ=UTC` and `TZ=Europe/Minsk` after reset-time changes.
 
 `npm test` runs TypeScript directly with Node 24. Keep `.ts` extensions on runtime imports reached by the tests. Lifecycle tests isolate `PASEO_HOME` and `XDG_STATE_HOME`, fake the clock and SDK connection, and never contact the live daemon.
 

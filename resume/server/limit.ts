@@ -81,6 +81,25 @@ interface UsageWindow {
   usedPct?: number | null;
   remainingPct?: number | null;
   resetsAt?: string | null;
+  summary?: boolean;
+}
+
+interface ProviderUsage {
+  providerId: string;
+  windows: readonly UsageWindow[];
+}
+
+/**
+ * The provider's windows that bound any of its agents. Paseo 0.11 lists each
+ * discovered account under the same provider ID without saying which one an
+ * agent uses, so several entries are ambiguous. It also lists model and feature
+ * quotas; when summary flags are present, only those windows apply to every agent.
+ */
+export function providerWindows(providers: readonly ProviderUsage[], provider: string): readonly UsageWindow[] {
+  const entries = providers.filter((entry) => entry.providerId === provider);
+  if (entries.length !== 1) return [];
+  const windows = entries[0].windows;
+  return windows.some((window) => window.summary) ? windows.filter((window) => window.summary) : windows;
 }
 
 /** The latest reset among the provider's exhausted windows that are still in the future. */
