@@ -27,6 +27,12 @@ const isPidFile = (value: unknown): value is PidFile =>
   "listen" in value &&
   typeof value.listen === "string";
 
+/**
+ * Resolves the daemon's own listen address to a WebSocket target.
+ *
+ * @param listen - The `listen` value from the daemon PID file.
+ * @returns The WebSocket URL, plus the socket path for a Unix socket.
+ */
 export const daemonTarget = (listen: string): DaemonTarget => {
   if (listen.startsWith("unix://") || listen.startsWith("/")) {
     const socketPath = listen.replace(/^unix:\/\//u, "");
@@ -49,8 +55,15 @@ export const daemonTarget = (listen: string): DaemonTarget => {
   return { url: url.toString() };
 };
 
-// The host exposes its SDK only in event/RPC contexts. Use a scoped local
-// connection for requests arriving before the first context after reload.
+/**
+ * Opens a scoped local SDK connection on first use. The host exposes its SDK
+ * only in event and RPC contexts, so requests that arrive before the first
+ * context after reload use this connection.
+ *
+ * @param paseoHome - The Paseo home whose PID file and local credential to use.
+ * @returns A connection whose `get` connects on demand and retries after a
+ * failure, and whose `close` disconnects for good.
+ */
 export const connectDaemon = (paseoHome: string) => {
   let ready: Promise<PaseoApi> | null = null;
   let client: DaemonClient | null = null;

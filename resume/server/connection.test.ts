@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { connectDaemon, daemonTarget } from "./connection";
 
-test("the daemon's own listen address selects TCP or Unix transport", () => {
+void test("the daemon's own listen address selects TCP or Unix transport", () => {
   assert.deepEqual(daemonTarget("127.0.0.1:6767"), {
     url: "ws://127.0.0.1:6767/ws",
   });
@@ -23,7 +23,7 @@ test("the daemon's own listen address selects TCP or Unix transport", () => {
   assert.throws(() => daemonTarget("localhost"));
 });
 
-test("a missing scoped daemon cannot fall back to the live default daemon", async (t) => {
+void test("a missing scoped daemon cannot fall back to the live default daemon", async (t) => {
   const home = mkdtempSync(path.join(tmpdir(), "paseo-connection-test-"));
   const connection = connectDaemon(home);
   t.after(async () => {

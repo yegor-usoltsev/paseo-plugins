@@ -63,6 +63,13 @@ const resolveRecipient = async (
   );
 };
 
+/**
+ * Delivers a `peer.send` message to its recipient, always in steer mode.
+ *
+ * @param paseo - The SDK client to send with.
+ * @param request - The forwarded tool call.
+ * @returns The tool result for the sending agent.
+ */
 export const deliver = async (
   paseo: PaseoApi,
   request: SendRequest

@@ -12,7 +12,7 @@ const ICONS: Record<ResumeStatus["state"], string> = {
   scheduled: "AlarmClock",
 };
 
-function label({ state, at, basis }: ResumeStatus): string {
+const label = ({ state, at, basis }: ResumeStatus): string => {
   const time = clockTime(new Date(at));
   if (state === "resumed") {
     return `Resumed after usage limit at ${time}`;
@@ -29,13 +29,18 @@ function label({ state, at, basis }: ResumeStatus): string {
   return basis === "estimate"
     ? `Usage limit reached · retrying at ${time}`
     : `Usage limit reached · resumes at ${time}`;
-}
+};
 
-// Drawn like Paseo's own compaction marker: a quiet event between two rules.
-export function ResumeStatusRow({
+/**
+ * Renders a resume status row, drawn like Paseo's own compaction marker: a
+ * quiet event between two rules.
+ *
+ * @returns The row.
+ */
+export const ResumeStatusRow = ({
   item,
   theme,
-}: PluginTimelineItemProps<ResumeStatus>) {
+}: PluginTimelineItemProps<ResumeStatus>) => {
   const { border, foregroundMuted } = theme.colors;
   return (
     <View
@@ -71,4 +76,4 @@ export function ResumeStatusRow({
       <View style={{ backgroundColor: border, flex: 1, height: 1 }} />
     </View>
   );
-}
+};

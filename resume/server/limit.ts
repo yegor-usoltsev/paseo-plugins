@@ -20,7 +20,14 @@ const FAILURE_PATTERNS = new Map([
   ["codex", CODEX_FAILURE],
 ]);
 
-/** Returns the limit message when the turn stopped on a usage limit. */
+/**
+ * Recognises a turn that stopped on a usage limit.
+ *
+ * @param provider - The agent's provider ID.
+ * @param outcome - How the turn ended.
+ * @param timeline - The turn's timeline.
+ * @returns The limit message, or null for any other stop.
+ */
 export const limitMessage = (
   provider: string,
   outcome: PluginTurnOutcome,
@@ -112,7 +119,13 @@ const hourOfDay = (hour: string, half: string) =>
 const isValidTime = (hour: string, minute: string) =>
   Number(hour) >= 1 && Number(hour) <= 12 && Number(minute) <= 59;
 
-/** Reads Claude's zoned reset or Codex's local "try again at" time. */
+/**
+ * Reads Claude's zoned reset or Codex's local "try again at" time.
+ *
+ * @param message - The limit message.
+ * @param now - The current time.
+ * @returns The reset time, or null when the message gives none.
+ */
 export const retryTimeFromMessage = (
   message: string,
   now: Date
@@ -174,6 +187,10 @@ const SCOPED_WINDOW = /:|^weekly_|^code_review$/u;
  * discovered account under the same provider ID without saying which one an
  * agent uses, so several entries are ambiguous. Scoped quotas never apply to
  * every agent; when summary flags are present, only those windows do.
+ *
+ * @param providers - The usage report's providers.
+ * @param provider - The agent's provider family.
+ * @returns The applicable windows, or none when the report is ambiguous.
  */
 export const providerWindows = (
   providers: readonly ProviderUsage[],
@@ -194,7 +211,14 @@ export const providerWindows = (
     : windows;
 };
 
-/** The latest reset among the provider's exhausted windows that are still in the future. */
+/**
+ * Finds the latest reset among the provider's exhausted windows that are still
+ * in the future.
+ *
+ * @param windows - The windows that bound the agent.
+ * @param now - The current time.
+ * @returns The reset time, or null when no exhausted window resets later.
+ */
 export const retryTimeFromUsage = (
   windows: readonly UsageWindow[],
   now: Date

@@ -12,6 +12,14 @@ import { deliver } from "./server/deliver";
 import { SHIM_SOURCE } from "./server/shim";
 import { listen, socketPath } from "./server/socket";
 
+/**
+ * Registers the peer plugin on the daemon: gives every new agent the `peer`
+ * MCP server and delivers its sends.
+ *
+ * @param server - The daemon-side plugin context.
+ * @param connect - Opens the startup SDK connection; tests replace it.
+ * @returns Cleanup that closes the socket and the startup connection.
+ */
 export default function contribute(
   server: PluginServerContext,
   connect = connectDaemon

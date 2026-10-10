@@ -12,6 +12,12 @@ import { unwrap } from "./shared/envelope";
 const MESSAGE_KIND = "peer-message";
 const OUTGOING_KIND = "peer-outgoing";
 
+/**
+ * Registers the peer message cards in the app.
+ *
+ * @param client - The app-side plugin context.
+ * @returns Cleanup that removes the timeline transformers and renderers.
+ */
 export default function contribute(client: PluginClientContext) {
   const cleanups = [
     client.addTimelineTransformer({

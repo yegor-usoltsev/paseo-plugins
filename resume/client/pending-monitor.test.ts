@@ -1,3 +1,4 @@
+/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
@@ -139,7 +140,7 @@ const setup = (t: TestContext, observeFails = false) => {
   };
 };
 
-test("a restored agent beyond the first directory page gets its controls", async (t) => {
+void test("a restored agent beyond the first directory page gets its controls", async (t) => {
   const h = setup(t);
   await flush();
   assert.deepEqual(h.fetched, [entry.agentId]);
@@ -148,14 +149,14 @@ test("a restored agent beyond the first directory page gets its controls", async
   assert.equal(h.pills[0].workspaceId, "old-workspace");
 });
 
-test("pending controls load even if agent observation fails", async (t) => {
+void test("pending controls load even if agent observation fails", async (t) => {
   const h = setup(t, true);
   await flush();
   assert.equal(h.pills.length, 1);
   assert.equal(h.monitor.getSnapshot().unavailable, false);
 });
 
-test("failed queries keep the confirmed schedule and mark controls unavailable", async (t) => {
+void test("failed queries keep the confirmed schedule and mark controls unavailable", async (t) => {
   const h = setup(t);
   await flush();
   h.behavior.rpc = async () => {
@@ -172,7 +173,7 @@ test("failed queries keep the confirmed schedule and mark controls unavailable",
   assert.equal(h.pills[0].removed, true);
 });
 
-test("post-action reconciliation does not reuse a query captured before the action", async (t) => {
+void test("post-action reconciliation does not reuse a query captured before the action", async (t) => {
   const h = setup(t);
   await flush();
   const gate = deferred<{ entries: PendingEntry[] }>();
@@ -187,7 +188,7 @@ test("post-action reconciliation does not reuse a query captured before the acti
   assert.equal(h.pills[0].removed, true);
 });
 
-test("stopping during a query cannot recreate controls", async (t) => {
+void test("stopping during a query cannot recreate controls", async (t) => {
   const h = setup(t);
   await flush();
   const gate = deferred<{ entries: PendingEntry[] }>();

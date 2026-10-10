@@ -11,7 +11,7 @@ import {
 const codexNotice =
   "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 26th, 2026 11:33 AM.";
 
-test("a failed Codex turn is a limit stop", () => {
+void test("a failed Codex turn is a limit stop", () => {
   assert.equal(
     limitMessage(
       "codex",
@@ -22,7 +22,7 @@ test("a failed Codex turn is a limit stop", () => {
   );
 });
 
-test("an ordinary failure is not", () => {
+void test("an ordinary failure is not", () => {
   assert.equal(
     limitMessage(
       "claude",
@@ -33,7 +33,7 @@ test("an ordinary failure is not", () => {
   );
 });
 
-test("a short Claude notice ends a completed turn", () => {
+void test("a short Claude notice ends a completed turn", () => {
   const notice = "You've hit your limit · resets 3am (Europe/Berlin)";
   assert.equal(
     limitMessage("claude", { kind: "completed" }, [
@@ -43,7 +43,7 @@ test("a short Claude notice ends a completed turn", () => {
   );
 });
 
-test("Claude session-limit notices end completed and failed turns", () => {
+void test("Claude session-limit notices end completed and failed turns", () => {
   for (const notice of [
     "You've hit your session limit · resets 3:40pm (UTC)",
     "You’ve hit your session limit · resets 3:40pm (UTC)",
@@ -65,7 +65,7 @@ test("Claude session-limit notices end completed and failed turns", () => {
   }
 });
 
-test("other Claude notice forms end a completed turn", () => {
+void test("other Claude notice forms end a completed turn", () => {
   for (const notice of [
     "Claude AI usage limit reached|1791048000",
     "You've hit your usage limit",
@@ -79,7 +79,7 @@ test("other Claude notice forms end a completed turn", () => {
   }
 });
 
-test("an assistant reply that discusses limits is not a stop", () => {
+void test("an assistant reply that discusses limits is not a stop", () => {
   for (const reply of [
     "I added a rate limit check; you've hit your usage limit only when the counter overflows.",
     "You've hit your usage limit is the error string we now detect. All requested tests passed.",
@@ -94,7 +94,7 @@ test("an assistant reply that discusses limits is not a stop", () => {
   }
 });
 
-test("API throttling is not a usage-limit stop", () => {
+void test("API throttling is not a usage-limit stop", () => {
   assert.equal(
     limitMessage(
       "claude",
@@ -108,14 +108,14 @@ test("API throttling is not a usage-limit stop", () => {
   );
 });
 
-test("Codex's try-again time is read as local time", () => {
+void test("Codex's try-again time is read as local time", () => {
   assert.deepEqual(
     retryTimeFromMessage(codexNotice, new Date(2026, 8, 26, 9, 0)),
     new Date(2026, 8, 26, 11, 33)
   );
 });
 
-test("a try-again time without a date is its next occurrence", () => {
+void test("a try-again time without a date is its next occurrence", () => {
   const message =
     "You’ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage or try again at 4:06 PM.";
   assert.deepEqual(
@@ -133,7 +133,7 @@ test("a try-again time without a date is its next occurrence", () => {
   );
 });
 
-test("Claude's named timezone controls the reset independently of the daemon TZ", (t) => {
+void test("Claude's named timezone controls the reset independently of the daemon TZ", (t) => {
   const old = process.env.TZ;
   t.after(() => {
     if (old === undefined) {
@@ -154,7 +154,7 @@ test("Claude's named timezone controls the reset independently of the daemon TZ"
   }
 });
 
-test("Claude reset times cross midnight in the notice's timezone", () => {
+void test("Claude reset times cross midnight in the notice's timezone", () => {
   assert.deepEqual(
     retryTimeFromMessage(
       "You've hit your limit · resets 12:15am (Europe/Minsk)",
@@ -171,7 +171,7 @@ test("Claude reset times cross midnight in the notice's timezone", () => {
   );
 });
 
-test("Claude reset times respect DST transitions and repeated hours", () => {
+void test("Claude reset times respect DST transitions and repeated hours", () => {
   const notice = "You've hit your limit · resets 1:30am (America/New_York)";
   assert.deepEqual(
     retryTimeFromMessage(notice, new Date("2026-11-01T05:45:00Z")),
@@ -186,7 +186,7 @@ test("Claude reset times respect DST transitions and repeated hours", () => {
   );
 });
 
-test("invalid Claude zones and wall-clock times keep the fallback", () => {
+void test("invalid Claude zones and wall-clock times keep the fallback", () => {
   for (const time of [
     "3am (Unknown/Zone)",
     "13pm (UTC)",
@@ -203,7 +203,7 @@ test("invalid Claude zones and wall-clock times keep the fallback", () => {
   }
 });
 
-test("the latest exhausted future window wins", () => {
+void test("the latest exhausted future window wins", () => {
   const now = new Date("2026-10-03T12:00:00Z");
   const windows = [
     { resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 },
@@ -224,7 +224,7 @@ test("the latest exhausted future window wins", () => {
   );
 });
 
-test("several accounts of one provider give no usage windows", () => {
+void test("several accounts of one provider give no usage windows", () => {
   const window = { resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 };
   const providers = [
     { providerId: "codex", windows: [window] },
@@ -239,7 +239,7 @@ test("several accounts of one provider give no usage windows", () => {
   assert.deepEqual(providerWindows(providers, "other"), []);
 });
 
-test("model and feature quotas are ignored when summary windows are flagged", () => {
+void test("model and feature quotas are ignored when summary windows are flagged", () => {
   const now = new Date("2026-10-03T12:00:00Z");
   const windows = [
     { resetsAt: "2026-10-03T13:00:00Z", summary: true, usedPct: 100 },
@@ -273,7 +273,7 @@ const scoped = (id: string) => ({
   usedPct: 100,
 });
 
-test("reports with only scoped quotas give no usage windows", () => {
+void test("reports with only scoped quotas give no usage windows", () => {
   // Paseo 0.11 omits the summary flag from scoped windows rather than setting it false.
   const codex = [
     scoped("limit:other-model:five_hour"),
@@ -298,7 +298,7 @@ test("reports with only scoped quotas give no usage windows", () => {
   );
 });
 
-test("usage-limit detection is scoped to provider notice forms", () => {
+void test("usage-limit detection is scoped to provider notice forms", () => {
   for (const provider of ["codex", "claude", "other"]) {
     assert.equal(
       limitMessage(

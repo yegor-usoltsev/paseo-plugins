@@ -11,6 +11,7 @@ export const pendingEntrySchema = z.object({
   resumeAt: z.string(),
 });
 
+/** A pending resume, as the composer pill shows it. */
 export type PendingEntry = z.output<typeof pendingEntrySchema>;
 
 export const listPendingRpc = defineRpc({

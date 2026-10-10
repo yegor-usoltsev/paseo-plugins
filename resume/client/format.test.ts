@@ -12,12 +12,12 @@ const entry = {
   resumeAt: now.toISOString(),
 };
 
-test("a passed deadline does not claim dispatch has started", () => {
+void test("a passed deadline does not claim dispatch has started", () => {
   assert.equal(pillLabel(entry, now), "Resume due");
   assert.equal(pillLabel({ ...entry, attempting: true }, now), "Resuming…");
 });
 
-test("waiting labels retain the basis of the next attempt", () => {
+void test("waiting labels retain the basis of the next attempt", () => {
   const later = {
     ...entry,
     resumeAt: new Date(+now + 30 * 60_000).toISOString(),
@@ -30,7 +30,7 @@ test("waiting labels retain the basis of the next attempt", () => {
   assert.equal(pillLabel({ ...later, basis: "retry" }, now), "Retry in 30 min");
 });
 
-test("a next-day attempt includes its local date", () => {
+void test("a next-day attempt includes its local date", () => {
   const later = new Date(+now + 24 * 60 * 60_000);
   assert.ok(
     clockTime(later, now).includes(

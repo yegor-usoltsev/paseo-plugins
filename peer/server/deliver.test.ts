@@ -1,3 +1,4 @@
+/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -40,7 +41,7 @@ const fixture = (
   return { api, cursors, sent };
 };
 
-test("full IDs are fetched directly and delivery always steers", async () => {
+void test("full IDs are fetched directly and delivery always steers", async () => {
   const h = fixture([]);
   await deliver(h.api, { from: "sender", message: "hello", to: id });
   assert.deepEqual(h.cursors, []);
@@ -53,7 +54,7 @@ test("full IDs are fetched directly and delivery always steers", async () => {
   ]);
 });
 
-test("delivery preserves Unicode, whitespace, and numeric text verbatim", async () => {
+void test("delivery preserves Unicode, whitespace, and numeric text verbatim", async () => {
   const h = fixture([]);
   const message =
     "Финальный мой proposal: 43 lines (668 words vs 575).\r\n\r\n  git apply --check\n\tPaths: /tmp/a b/changes.patch\nEmoji: 👋; Unicode: café\n";
@@ -63,7 +64,7 @@ test("delivery preserves Unicode, whitespace, and numeric text verbatim", async 
   assert.deepEqual(unwrap(sent.text), { body: message, senderId: "sender" });
 });
 
-test("prefixes resolve beyond the first page", async () => {
+void test("prefixes resolve beyond the first page", async () => {
   const h = fixture([
     [{ id: "other", title: null }],
     [{ id, title: "recipient" }],
@@ -73,7 +74,7 @@ test("prefixes resolve beyond the first page", async () => {
   assert.equal(h.sent.length, 1);
 });
 
-test("a duplicate title on a later page is ambiguous", async () => {
+void test("a duplicate title on a later page is ambiguous", async () => {
   const h = fixture([
     [{ id, title: "recipient" }],
     [{ id: "other", title: "recipient" }],
@@ -85,7 +86,7 @@ test("a duplicate title on a later page is ambiguous", async () => {
   assert.equal(h.sent.length, 0);
 });
 
-test("an archived full ID cannot receive a message", async () => {
+void test("an archived full ID cannot receive a message", async () => {
   const h = fixture([], new Date().toISOString());
   await assert.rejects(
     deliver(h.api, { from: "sender", message: "hello", to: id }),

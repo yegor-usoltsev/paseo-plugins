@@ -53,11 +53,10 @@ const WRAP_ANYWHERE: TextStyle =
 // Long messages fold to this many lines until expanded. React Native Web
 // reports no line layout, so length is judged from the text itself.
 const FOLDED_LINES = 12;
-function isLong(text: string) {
-  return text.split("\n").length > FOLDED_LINES || text.length > 1200;
-}
+const isLong = (text: string) =>
+  text.split("\n").length > FOLDED_LINES || text.length > 1200;
 
-function useAgentIdentity(agentId: string) {
+const useAgentIdentity = (agentId: string) => {
   const agent = useAgent(agentId, (snapshot) => ({
     provider: snapshot.provider,
     title: snapshot.title,
@@ -66,7 +65,7 @@ function useAgentIdentity(agentId: string) {
     name: PROVIDER_NAMES.get(agent?.provider ?? "") ?? "Agent",
     title: agent?.title ?? undefined,
   };
-}
+};
 
 interface CardProps extends PluginHostProps {
   icon: string;
@@ -78,7 +77,23 @@ interface CardProps extends PluginHostProps {
   footer?: { text: string; tone: "muted" | "danger" };
 }
 
-function MessageCard({
+const shorten = (text: string) =>
+  text.length > 24 ? `${text.slice(0, 23)}…` : text;
+
+const statusFooter = (
+  status: Outgoing["status"],
+  error: string | null
+): CardProps["footer"] => {
+  if (status === "failed") {
+    return { text: error ?? "Not delivered.", tone: "danger" };
+  }
+  if (status === "sending") {
+    return { text: "Sending…", tone: "muted" };
+  }
+  return undefined;
+};
+
+const MessageCard = ({
   icon,
   heading,
   title,
@@ -87,7 +102,7 @@ function MessageCard({
   timestamp,
   footer,
   theme,
-}: CardProps) {
+}: CardProps) => {
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const folded = isLong(body);
@@ -96,7 +111,7 @@ function MessageCard({
     hour: "numeric",
     minute: "2-digit",
   });
-  async function copy(text: string, what: string) {
+  const copy = async (text: string, what: string) => {
     try {
       await copyText(text);
     } catch {
@@ -104,7 +119,7 @@ function MessageCard({
       return;
     }
     toast.show(`${what} copied`, { variant: "success" });
-  }
+  };
   const action = { color: colors.foregroundMuted, fontSize: 12 };
   const headingText = (
     <Text
@@ -198,13 +213,18 @@ function MessageCard({
       ) : null}
     </View>
   );
-}
+};
 
-export function PeerMessageCard({
+/**
+ * Renders an incoming peer message as a "From <agent>" card.
+ *
+ * @returns The card.
+ */
+export const PeerMessageCard = ({
   item,
   timestamp,
   ...host
-}: PluginTimelineItemProps<PeerMessage>) {
+}: PluginTimelineItemProps<PeerMessage>) => {
   const { senderId, body } = item.data;
   const { name, title } = useAgentIdentity(senderId);
   return (
@@ -218,13 +238,18 @@ export function PeerMessageCard({
       timestamp={timestamp}
     />
   );
-}
+};
 
-export function OutgoingMessageCard({
+/**
+ * Renders the sender's own `peer.send` call as a "To <agent>" card.
+ *
+ * @returns The card.
+ */
+export const OutgoingMessageCard = ({
   item,
   timestamp,
   ...host
-}: PluginTimelineItemProps<Outgoing>) {
+}: PluginTimelineItemProps<Outgoing>) => {
   const { to, recipientId, body, status, error } = item.data;
   const id = recipientId ?? (FULL_ID.test(to) ? to : null);
   const { name, title } = useAgentIdentity(id ?? to);
@@ -240,21 +265,4 @@ export function OutgoingMessageCard({
       footer={statusFooter(status, error)}
     />
   );
-}
-
-function shorten(text: string) {
-  return text.length > 24 ? `${text.slice(0, 23)}…` : text;
-}
-
-function statusFooter(
-  status: Outgoing["status"],
-  error: string | null
-): CardProps["footer"] {
-  if (status === "failed") {
-    return { text: error ?? "Not delivered.", tone: "danger" };
-  }
-  if (status === "sending") {
-    return { text: "Sending…", tone: "muted" };
-  }
-  return undefined;
-}
+};

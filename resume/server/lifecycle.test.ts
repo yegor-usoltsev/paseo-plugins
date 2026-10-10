@@ -1,3 +1,4 @@
+/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -224,7 +225,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
 };
 
 for (const action of ["archive", "stop"] as const) {
-  test(`${action} during usage lookup invalidates the schedule`, async (t) => {
+  void test(`${action} during usage lookup invalidates the schedule`, async (t) => {
     const h = setup(t);
     const gate = deferred();
     const { usage } = h.behavior;
@@ -242,7 +243,7 @@ for (const action of ["archive", "stop"] as const) {
   });
 }
 
-test("a failed send remains persisted and retries", async (t) => {
+void test("a failed send remains persisted and retries", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     throw new Error("disconnected");
@@ -262,7 +263,7 @@ test("a failed send remains persisted and retries", async (t) => {
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-test("a failed refresh retries instead of discarding the job", async (t) => {
+void test("a failed refresh retries instead of discarding the job", async (t) => {
   const h = setup(t);
   h.behavior.refresh = async () => {
     throw new Error("disconnected");
@@ -276,7 +277,7 @@ test("a failed refresh retries instead of discarding the job", async (t) => {
 });
 
 for (const action of ["archive", "stop"] as const) {
-  test(`${action} during refresh prevents delivery`, async (t) => {
+  void test(`${action} during refresh prevents delivery`, async (t) => {
     const h = setup(t);
     const gate = deferred();
     h.behavior.refresh = async () => {
@@ -291,7 +292,7 @@ for (const action of ["archive", "stop"] as const) {
   });
 }
 
-test("archiving during a failed send does not resurrect the job", async (t) => {
+void test("archiving during a failed send does not resurrect the job", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.send = async () => {
@@ -305,7 +306,7 @@ test("archiving during a failed send does not resurrect the job", async (t) => {
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-test("a fast repeated limit is not deleted by the earlier send response", async (t) => {
+void test("a fast repeated limit is not deleted by the earlier send response", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     await h.start();
@@ -317,7 +318,7 @@ test("a fast repeated limit is not deleted by the earlier send response", async 
 });
 
 for (const state of [null, { archivedAt: NOW.toISOString(), status: "idle" }]) {
-  test(`resume discards an unavailable recipient: ${JSON.stringify(state)}`, async (t) => {
+  void test(`resume discards an unavailable recipient: ${JSON.stringify(state)}`, async (t) => {
     const h = setup(t);
     h.setSnapshot(state);
     await h.limited();
@@ -327,7 +328,7 @@ for (const state of [null, { archivedAt: NOW.toISOString(), status: "idle" }]) {
   });
 }
 
-test("a resumed failure reaches the parent without interrupting it", async (t) => {
+void test("a resumed failure reaches the parent without interrupting it", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     await h.start();
@@ -345,7 +346,7 @@ test("a resumed failure reaches the parent without interrupting it", async (t) =
   assert.deepEqual(h.sent[1].options, { activeTurnBehavior: "steer" });
 });
 
-test("a replacement turn does not inherit the resumed turn notification", async (t) => {
+void test("a replacement turn does not inherit the resumed turn notification", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     await h.start();
@@ -362,7 +363,7 @@ test("a replacement turn does not inherit the resumed turn notification", async 
   assert.equal(h.sent.length, 1);
 });
 
-test("a restored job retries failed SDK delivery before any hook or RPC", async (t) => {
+void test("a restored job retries failed SDK delivery before any hook or RPC", async (t) => {
   const h = setup(t, true);
   h.behavior.send = async () => {
     throw new Error("disconnected");
@@ -381,7 +382,7 @@ for (const snapshot of [
   null,
   { archivedAt: NOW.toISOString(), status: "idle" },
 ]) {
-  test(`a restored job skips an unavailable SDK recipient: ${JSON.stringify(snapshot)}`, async (t) => {
+  void test(`a restored job skips an unavailable SDK recipient: ${JSON.stringify(snapshot)}`, async (t) => {
     const h = setup(t, true);
     h.setSnapshot(snapshot);
     await h.tick(0);
@@ -390,7 +391,7 @@ for (const snapshot of [
   });
 }
 
-test("a cancelled restored job cannot send after startup connection resolves", async (t) => {
+void test("a cancelled restored job cannot send after startup connection resolves", async (t) => {
   const gate = deferred();
   const h = setup(t, true, gate.promise);
   await h.tick(0);
@@ -401,7 +402,7 @@ test("a cancelled restored job cannot send after startup connection resolves", a
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-test("joining a concurrently started turn does not claim it was resumed", async (t) => {
+void test("joining a concurrently started turn does not claim it was resumed", async (t) => {
   const h = setup(t);
   await h.limited();
   await h.tick();
@@ -414,7 +415,7 @@ test("joining a concurrently started turn does not claim it was resumed", async 
   assert.equal(h.sent.length, 1);
 });
 
-test("the pending list reports the resume time and whether it is a guess", async (t) => {
+void test("the pending list reports the resume time and whether it is a guess", async (t) => {
   const h = setup(t);
   await h.limited();
   assert.deepEqual(await h.listPending(), {
@@ -434,7 +435,7 @@ test("the pending list reports the resume time and whether it is a guess", async
   assert.equal(listed.entries[0].basis, "estimate");
 });
 
-test("Claude's zoned notice schedules a known reset with two minutes of margin", async (t) => {
+void test("Claude's zoned notice schedules a known reset with two minutes of margin", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });
   await h.emit("agent.turn_ended", {
@@ -452,7 +453,7 @@ test("Claude's zoned notice schedules a known reset with two minutes of margin",
   assert.equal(h.store().get(agent.id)?.basis, "reset");
 });
 
-test("ambiguous multi-account usage defers to the notice's reset", async (t) => {
+void test("ambiguous multi-account usage defers to the notice's reset", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({
     providers: [
@@ -481,7 +482,7 @@ test("ambiguous multi-account usage defers to the notice's reset", async (t) => 
   assert.equal(h.store().get(agent.id)?.basis, "reset");
 });
 
-test("an estimated job rechecks expired usage and retains its job ID", async (t) => {
+void test("an estimated job rechecks expired usage and retains its job ID", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });
   await h.limited("You've hit your usage limit");
@@ -505,7 +506,7 @@ test("an estimated job rechecks expired usage and retains its job ID", async (t)
   });
 });
 
-test("cancelling during a usage recheck cannot restore the estimated job", async (t) => {
+void test("cancelling during a usage recheck cannot restore the estimated job", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });
   await h.limited("You've hit your usage limit");
@@ -530,7 +531,7 @@ test("cancelling during a usage recheck cannot restore the estimated job", async
   assert.equal(h.sent.length, 0);
 });
 
-test("a failed usage recheck retains the estimate and tries again", async (t) => {
+void test("a failed usage recheck retains the estimate and tries again", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });
   await h.limited("You've hit your usage limit");
@@ -553,7 +554,7 @@ test("a failed usage recheck retains the estimate and tries again", async (t) =>
   assert.equal(h.sent.length, 0);
 });
 
-test("cancelling from the client drops the pending resume", async (t) => {
+void test("cancelling from the client drops the pending resume", async (t) => {
   const h = setup(t);
   await h.limited();
   const cancelled = await h.act("cancel-resume", { agentId: agent.id });
@@ -565,7 +566,7 @@ test("cancelling from the client drops the pending resume", async (t) => {
   assert.equal(repeated.ok, false);
 });
 
-test("resume now sends at once and clears the timer", async (t) => {
+void test("resume now sends at once and clears the timer", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     await h.start();
@@ -580,7 +581,7 @@ test("resume now sends at once and clears the timer", async (t) => {
   assert.equal(h.sent.length, 1);
 });
 
-test("resume now reports a busy agent instead of interrupting it", async (t) => {
+void test("resume now reports a busy agent instead of interrupting it", async (t) => {
   const h = setup(t);
   await h.limited();
   h.setSnapshot({ archivedAt: null, status: "running" });
@@ -590,7 +591,7 @@ test("resume now reports a busy agent instead of interrupting it", async (t) => 
   assert.ok(h.store().get(agent.id));
 });
 
-test("a message turn preserves the original continuation after its reply", async (t) => {
+void test("a message turn preserves the original continuation after its reply", async (t) => {
   const h = setup(t);
   await h.limited();
   const pending = h.store().get(agent.id);
@@ -615,7 +616,7 @@ test("a message turn preserves the original continuation after its reply", async
   assert.deepEqual(h.sent[0].options, { activeTurnBehavior: "steer" });
 });
 
-test("a message arriving during usage lookup does not discard the resume", async (t) => {
+void test("a message arriving during usage lookup does not discard the resume", async (t) => {
   const h = setup(t);
   const gate = deferred();
   const { usage } = h.behavior;
@@ -632,7 +633,7 @@ test("a message arriving during usage lookup does not discard the resume", async
   assert.equal(h.sent.length, 1);
 });
 
-test("a message failure leaves the original resume scheduled", async (t) => {
+void test("a message failure leaves the original resume scheduled", async (t) => {
   const h = setup(t);
   await h.limited();
   await h.start("message");
@@ -648,7 +649,7 @@ test("a message failure leaves the original resume scheduled", async (t) => {
 });
 
 for (const restored of [false, true]) {
-  test(`a busy recipient retains its ${restored ? "restored" : "new"} resume until idle`, async (t) => {
+  void test(`a busy recipient retains its ${restored ? "restored" : "new"} resume until idle`, async (t) => {
     const h = setup(t, restored);
     if (!restored) {
       await h.limited();
@@ -666,7 +667,7 @@ for (const restored of [false, true]) {
   });
 }
 
-test("a message starting during refresh defers the resume without losing it", async (t) => {
+void test("a message starting during refresh defers the resume without losing it", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.refresh = async () => {
@@ -685,7 +686,7 @@ test("a message starting during refresh defers the resume without losing it", as
   assert.equal(h.sent.length, 1);
 });
 
-test("usage rechecks keep the resume while a message turn is running", async (t) => {
+void test("usage rechecks keep the resume while a message turn is running", async (t) => {
   const h = setup(t);
   h.behavior.usage = async () => ({ providers: [] });
   await h.limited("You've hit your usage limit");
@@ -704,7 +705,7 @@ test("usage rechecks keep the resume while a message turn is running", async (t)
   assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
 });
 
-test("an overdue resume retries as soon as the message turn ends", async (t) => {
+void test("an overdue resume retries as soon as the message turn ends", async (t) => {
   const h = setup(t);
   await h.limited();
   await h.start("message");
@@ -729,7 +730,7 @@ test("an overdue resume retries as soon as the message turn ends", async (t) => 
   assert.equal(h.sent.length, 1);
 });
 
-test("Cancel while a message is running removes its deferred resume", async (t) => {
+void test("Cancel while a message is running removes its deferred resume", async (t) => {
   const h = setup(t);
   await h.limited();
   await h.start("message");
@@ -749,7 +750,7 @@ test("Cancel while a message is running removes its deferred resume", async (t) 
   assert.equal(h.store().get(agent.id), undefined);
 });
 
-test("Stop does not immediately restart a message turn", async (t) => {
+void test("Stop does not immediately restart a message turn", async (t) => {
   const h = setup(t);
   await h.limited();
   await h.start("message");
@@ -769,7 +770,7 @@ test("Stop does not immediately restart a message turn", async (t) => {
   assert.equal(h.sent.length, 1);
 });
 
-test("another limit reschedules the old row without cancelling auto-resume", async (t) => {
+void test("another limit reschedules the old row without cancelling auto-resume", async (t) => {
   const h = setup(t);
   await h.limited();
   const first = h.stored();
@@ -783,7 +784,7 @@ test("another limit reschedules the old row without cancelling auto-resume", asy
   assert.equal(h.rows[1].rowId, first.rowId);
 });
 
-test("an earlier usage lookup cannot overwrite a later limit episode", async (t) => {
+void test("an earlier usage lookup cannot overwrite a later limit episode", async (t) => {
   const h = setup(t);
   const gate = deferred();
   let calls = 0;
@@ -803,7 +804,7 @@ test("an earlier usage lookup cannot overwrite a later limit episode", async (t)
   assert.deepEqual(h.store().get(agent.id), latest);
 });
 
-test("each limit stop keeps its own chat row", async (t) => {
+void test("each limit stop keeps its own chat row", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     await h.start();
@@ -821,7 +822,7 @@ test("each limit stop keeps its own chat row", async (t) => {
   assert.notEqual(second.rowId, first.rowId);
 });
 
-test("resume now during a timed attempt sends one prompt", async (t) => {
+void test("resume now during a timed attempt sends one prompt", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.refresh = async () => {
@@ -837,7 +838,7 @@ test("resume now during a timed attempt sends one prompt", async (t) => {
   assert.equal(h.sent.length, 1);
 });
 
-test("a failed delivery is shown as a retry, not an unknown reset", async (t) => {
+void test("a failed delivery is shown as a retry, not an unknown reset", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
     throw new Error("disconnected");
@@ -848,7 +849,7 @@ test("a failed delivery is shown as a retry, not an unknown reset", async (t) =>
   assert.equal(listed.entries[0].basis, "retry");
 });
 
-test("the pending list reports a real attempt until delivery settles", async (t) => {
+void test("the pending list reports a real attempt until delivery settles", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.refresh = async () => {
@@ -869,7 +870,7 @@ test("the pending list reports a real attempt until delivery settles", async (t)
   assert.equal(entry.basis, "retry");
 });
 
-test("a renewed limit job is not consumed by the previous send in flight", async (t) => {
+void test("a renewed limit job is not consumed by the previous send in flight", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.send = async () => {
@@ -893,7 +894,7 @@ test("a renewed limit job is not consumed by the previous send in flight", async
 });
 
 for (const action of ["resume-now", "cancel-resume"]) {
-  test(`${action} from an old popover cannot affect a later limit episode`, async (t) => {
+  void test(`${action} from an old popover cannot affect a later limit episode`, async (t) => {
     const h = setup(t);
     await h.limited();
     const {
@@ -913,7 +914,7 @@ for (const action of ["resume-now", "cancel-resume"]) {
   });
 }
 
-test("a queued attempt cannot resume a replacement job early", async (t) => {
+void test("a queued attempt cannot resume a replacement job early", async (t) => {
   const h = setup(t);
   const gate = deferred();
   h.behavior.send = async () => {
@@ -940,7 +941,7 @@ test("a queued attempt cannot resume a replacement job early", async (t) => {
   assert.equal(h.sent.length, 2);
 });
 
-test("the observed Codex quota failure resumes even when usage reports only 98 percent", async (t) => {
+void test("the observed Codex quota failure resumes even when usage reports only 98 percent", async (t) => {
   const h = setup(t);
   const reset = new Date(2026, 9, 3, 16, 6);
   h.behavior.usage = async () => ({

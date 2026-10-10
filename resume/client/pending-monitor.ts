@@ -17,7 +17,14 @@ interface Snapshot {
   unavailable: boolean;
 }
 
-/** Reconciles persisted jobs independently of the agent directory's first page. */
+/**
+ * Reconciles persisted jobs independently of the agent directory's first page
+ * and keeps a composer pill on each agent with a pending resume.
+ *
+ * @param client - The app-side plugin context.
+ * @param Content - The popover each pill opens.
+ * @returns The pending-resume store and its controls.
+ */
 export const createPendingMonitor = (
   client: PluginClientContext,
   Content: ComponentType<PluginButtonContentProps>

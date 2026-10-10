@@ -19,7 +19,7 @@ const EXPLANATIONS: Record<PendingEntry["basis"], string> = {
   retry: "The last resume was deferred or could not reach the agent.",
 };
 
-function explanation(entry: PendingEntry, unavailable: boolean): string {
+const explanation = (entry: PendingEntry, unavailable: boolean): string => {
   const at = new Date(entry.resumeAt);
   if (unavailable) {
     return `Status unavailable. Last confirmed attempt at ${clockTime(at)}. Controls return when the connection recovers.`;
@@ -28,23 +28,23 @@ function explanation(entry: PendingEntry, unavailable: boolean): string {
     return "A resume attempt is in progress.";
   }
   return `${EXPLANATIONS[entry.basis]} Next attempt at ${clockTime(at)}, ${untilTime(at)}.`;
-}
+};
 
-/** Shows a composer pill on every agent waiting for its usage limit to reset. */
-export function contributePills(client: PluginClientContext): () => void {
-  const monitor = createPendingMonitor(client, ResumePopover);
-  const appState = AppState.addEventListener("change", (state) => {
-    if (state === "active") {
-      void monitor.refresh();
-    }
-  });
-
-  function ResumePopover(props: PluginButtonContentProps) {
+/**
+ * Shows a composer pill on every agent waiting for its usage limit to reset.
+ *
+ * @param client - The app-side plugin context.
+ * @returns Cleanup that removes the pills.
+ */
+export const contributePills = (client: PluginClientContext): (() => void) => {
+  const ResumePopover = (props: PluginButtonContentProps) => {
+    // oxlint-disable-next-line no-use-before-define -- The host renders the popover only after the monitor below exists, and the monitor needs the popover to add pills.
+    const pending = monitor;
     const { theme } = props;
     const agentId = props.context === "agent" ? props.agentId : undefined;
     const { entries, unavailable } = useSyncExternalStore(
-      monitor.subscribe,
-      monitor.getSnapshot
+      pending.subscribe,
+      pending.getSnapshot
     );
     const entry = agentId === undefined ? undefined : entries.get(agentId);
     const toast = useToast();
@@ -60,7 +60,7 @@ export function contributePills(client: PluginClientContext): () => void {
       );
     }
     const job = { agentId, jobId: entry.jobId };
-    async function act(contract: typeof resumeNowRpc) {
+    const act = async (contract: typeof resumeNowRpc) => {
       setBusy(true);
       try {
         const result = await client.rpc(contract, job);
@@ -69,22 +69,20 @@ export function contributePills(client: PluginClientContext): () => void {
         } else {
           toast.show(result.message, { variant: "warning" });
         }
-        await monitor.refreshAfterAction();
+        await pending.refreshAfterAction();
         props.close();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : String(error));
       }
       setBusy(false);
-    }
-    function button(primary: boolean) {
-      return {
-        backgroundColor: primary ? colors.accent : colors.surface2,
-        borderRadius: 8,
-        opacity: busy || unavailable ? 0.5 : 1,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-      };
-    }
+    };
+    const button = (primary: boolean) => ({
+      backgroundColor: primary ? colors.accent : colors.surface2,
+      borderRadius: 8,
+      opacity: busy || unavailable ? 0.5 : 1,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    });
     return (
       <View style={{ gap: 12, maxWidth: 320 }}>
         <View style={{ gap: 4 }}>
@@ -132,10 +130,17 @@ export function contributePills(client: PluginClientContext): () => void {
         </View>
       </View>
     );
-  }
+  };
+
+  const monitor = createPendingMonitor(client, ResumePopover);
+  const appState = AppState.addEventListener("change", (state) => {
+    if (state === "active") {
+      void monitor.refresh();
+    }
+  });
 
   return () => {
     appState.remove();
     monitor.stop();
   };
-}
+};

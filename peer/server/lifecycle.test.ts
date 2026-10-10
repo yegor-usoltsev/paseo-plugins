@@ -1,3 +1,4 @@
+/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -13,7 +14,7 @@ import contribute from "../index.server";
 import type { PaseoApi } from "./sdk";
 import { socketPath } from "./socket";
 
-test("a socket send after reload works without any agent event or client RPC", async (t) => {
+void test("a socket send after reload works without any agent event or client RPC", async (t) => {
   const home = mkdtempSync(path.join(tmpdir(), "paseo-peer-startup-test-"));
   const oldHome = process.env.PASEO_HOME;
   process.env.PASEO_HOME = home;

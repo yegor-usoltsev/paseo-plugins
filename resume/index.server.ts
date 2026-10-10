@@ -84,6 +84,14 @@ const notifyParent = async (
   await parent.send(text, STEER);
 };
 
+/**
+ * Registers the resume plugin on the daemon: schedules a resume after each
+ * usage-limit stop and serves the pending-resume RPCs.
+ *
+ * @param server - The daemon-side plugin context.
+ * @param connect - Opens the startup SDK connection; tests replace it.
+ * @returns Cleanup that stops the timers and closes the startup connection.
+ */
 export default function contribute(
   server: PluginServerContext,
   connect = connectDaemon
@@ -155,6 +163,7 @@ export default function contribute(
       if (Date.now() < Date.parse(resumeAt)) {
         arm(agentId, resumeAt);
       } else {
+        // oxlint-disable-next-line no-use-before-define -- arm() and resume() schedule each other; the timer fires after both exist.
         void resume(agentId);
       }
     };
@@ -166,15 +175,14 @@ export default function contribute(
     usageTimers.set(
       agentId,
       setTimeout(() => {
+        // oxlint-disable-next-line no-use-before-define -- armUsageCheck() and recheckUsage() schedule each other; the timer fires after both exist.
         void recheckUsage(agentId);
       }, USAGE_REFRESH_MS)
     );
   };
 
-  // A usage recheck that finds no reset arms the next one, so the timer above
-  // needs this function hoisted.
-  // oxlint-disable-next-line func-style -- Hoisting breaks the armUsageCheck/recheckUsage cycle.
-  async function recheckUsage(agentId: string): Promise<void> {
+  // A usage recheck that finds no reset arms the next one.
+  const recheckUsage = async (agentId: string): Promise<void> => {
     usageTimers.delete(agentId);
     const entry = pending.get(agentId);
     if (!entry || entry.basis !== "estimate" || disposed) {
@@ -228,7 +236,7 @@ export default function contribute(
     if (current()) {
       armUsageCheck(agentId);
     }
-  }
+  };
 
   const attemptResume = async (agentId: string): Promise<Outcome> => {
     timers.delete(agentId);
@@ -314,9 +322,8 @@ export default function contribute(
   };
 
   // A due timer starts a resume, and a deferred or failed resume arms the next
-  // timer, so arm() above needs this function hoisted.
-  // oxlint-disable-next-line func-style -- Hoisting breaks the arm/resume cycle.
-  async function resume(agentId: string): Promise<Outcome> {
+  // timer.
+  const resume = async (agentId: string): Promise<Outcome> => {
     const entry = pending.get(agentId);
     const running = inflight.get(agentId);
     if (running) {
@@ -333,7 +340,7 @@ export default function contribute(
     const attempt = settleAttempt(agentId, attemptResume(agentId));
     inflight.set(agentId, { entry, promise: attempt });
     return await attempt;
-  }
+  };
 
   const schedule = async (
     agent: PluginHookAgent,
