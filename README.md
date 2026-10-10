@@ -25,7 +25,7 @@ git clone https://github.com/yegor-usoltsev/paseo-plugins.git
 cd paseo-plugins
 npm install
 npm test
-npm run typecheck
+npm run lint
 npm ci --prefix peer --workspaces=false --omit=dev --ignore-scripts
 npm ci --prefix resume --workspaces=false --omit=dev --ignore-scripts
 paseo plugin install "$PWD/peer"
