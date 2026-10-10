@@ -1,4 +1,3 @@
-/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -19,18 +18,19 @@ const fixture = (
       list: async ({ page }: { page: { cursor?: string } }) => {
         cursors.push(page.cursor);
         const index = Number(page.cursor ?? 0);
-        return {
+        return await Promise.resolve({
           entries: pages[index].map((agent) => ({ agent })),
           pageInfo: {
             nextCursor: index + 1 < pages.length ? String(index + 1) : null,
           },
-        };
+        });
       },
       ref: (agentId: string) => ({
         current: () => ({ archivedAt, id: agentId, title: "recipient" }),
         refresh: async () => {},
         send: async (text: string, options: PaseoAgentSendOptions) => {
           sent.push({ id: agentId, options, text });
+          await Promise.resolve();
         },
       }),
     },

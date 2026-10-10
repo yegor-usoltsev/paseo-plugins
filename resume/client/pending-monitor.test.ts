@@ -1,4 +1,3 @@
-/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
@@ -51,9 +50,10 @@ const setup = (t: TestContext, observeFails = false) => {
   });
   t.mock.method(console, "error", () => {});
   const behavior = {
-    rpc: async (): Promise<{ entries: PendingEntry[] }> => ({
-      entries: [entry],
-    }),
+    rpc: async (): Promise<{ entries: PendingEntry[] }> =>
+      await Promise.resolve({
+        entries: [entry],
+      }),
   };
   let queries = 0;
   const fetched: string[] = [];
@@ -90,7 +90,7 @@ const setup = (t: TestContext, observeFails = false) => {
           if (observeFails) {
             throw new Error("observation failed");
           }
-          return {
+          return await Promise.resolve({
             subscription: {
               subscribe: (handlers: AgentObserver) => {
                 observed = handlers;
@@ -104,11 +104,12 @@ const setup = (t: TestContext, observeFails = false) => {
                 });
               },
             },
-          };
+          });
         },
         ref: (id: string) => ({
           refresh: async () => {
             fetched.push(id);
+            await Promise.resolve();
           },
           workspaceId: "old-workspace",
         }),
@@ -159,15 +160,13 @@ void test("pending controls load even if agent observation fails", async (t) => 
 void test("failed queries keep the confirmed schedule and mark controls unavailable", async (t) => {
   const h = setup(t);
   await flush();
-  h.behavior.rpc = async () => {
-    throw new Error("disconnected");
-  };
+  h.behavior.rpc = async () => await Promise.reject(new Error("disconnected"));
   await h.monitor.refresh();
   assert.equal(h.monitor.getSnapshot().entries.get(entry.agentId), entry);
   assert.equal(h.monitor.getSnapshot().unavailable, true);
   assert.equal(h.pills[0].removed, false);
   assert.equal(h.pills[0].label, "Resume status unavailable");
-  h.behavior.rpc = async () => ({ entries: [] });
+  h.behavior.rpc = async () => await Promise.resolve({ entries: [] });
   await h.monitor.refresh();
   assert.equal(h.monitor.getSnapshot().unavailable, false);
   assert.equal(h.pills[0].removed, true);
@@ -179,7 +178,7 @@ void test("post-action reconciliation does not reuse a query captured before the
   const gate = deferred<{ entries: PendingEntry[] }>();
   h.behavior.rpc = async () => await gate.promise;
   const oldQuery = h.monitor.refresh();
-  h.behavior.rpc = async () => ({ entries: [] });
+  h.behavior.rpc = async () => await Promise.resolve({ entries: [] });
   const afterAction = h.monitor.refreshAfterAction();
   gate.resolve({ entries: [entry] });
   await oldQuery;

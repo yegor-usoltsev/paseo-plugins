@@ -1,4 +1,3 @@
-/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -29,6 +28,7 @@ void test("a socket send after reload works without any agent event or client RP
         refresh: async () => {},
         send: async (...args: unknown[]) => {
           sent.push(args);
+          await Promise.resolve();
         },
       }),
     },
@@ -43,8 +43,9 @@ void test("a socket send after reload works without any agent event or client RP
     () => ({
       close: async () => {
         closed = true;
+        await Promise.resolve();
       },
-      get: async () => api,
+      get: async () => await Promise.resolve(api),
     })
   );
   t.after(async () => {

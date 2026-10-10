@@ -1,4 +1,3 @@
-/* oxlint-disable require-await -- The in-memory fakes stub async SDK methods that have nothing to await. */
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -84,16 +83,17 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
   const behavior = {
     refresh: async () => {},
     send: async () => {},
-    usage: async () => ({
-      providers: [
-        {
-          providerId: "claude",
-          windows: [
-            { resetsAt: new Date(+NOW + 1000).toISOString(), usedPct: 100 },
-          ],
-        },
-      ],
-    }),
+    usage: async () =>
+      await Promise.resolve({
+        providers: [
+          {
+            providerId: "claude",
+            windows: [
+              { resetsAt: new Date(+NOW + 1000).toISOString(), usedPct: 100 },
+            ],
+          },
+        ],
+      }),
   };
   const fakeApi = {
     agents: {
@@ -114,6 +114,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
         timeline: {
           append: async (row: { id: string; data: { state: string } }) => {
             rows.push({ rowId: row.id, state: row.data.state });
+            await Promise.resolve();
           },
         },
       }),
@@ -246,7 +247,7 @@ for (const action of ["archive", "stop"] as const) {
 void test("a failed send remains persisted and retries", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
-    throw new Error("disconnected");
+    await Promise.reject(new Error("disconnected"));
   };
   await h.limited();
   await h.tick();
@@ -266,7 +267,7 @@ void test("a failed send remains persisted and retries", async (t) => {
 void test("a failed refresh retries instead of discarding the job", async (t) => {
   const h = setup(t);
   h.behavior.refresh = async () => {
-    throw new Error("disconnected");
+    await Promise.reject(new Error("disconnected"));
   };
   await h.limited();
   await h.tick();
@@ -366,7 +367,7 @@ void test("a replacement turn does not inherit the resumed turn notification", a
 void test("a restored job retries failed SDK delivery before any hook or RPC", async (t) => {
   const h = setup(t, true);
   h.behavior.send = async () => {
-    throw new Error("disconnected");
+    await Promise.reject(new Error("disconnected"));
   };
   await h.tick(0);
   assert.ok(h.store().get(agent.id));
@@ -429,7 +430,7 @@ void test("the pending list reports the resume time and whether it is a guess", 
       },
     ],
   });
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.limited("You've hit your usage limit");
   const listed = await h.listPending();
   assert.equal(listed.entries[0].basis, "estimate");
@@ -437,7 +438,7 @@ void test("the pending list reports the resume time and whether it is a guess", 
 
 void test("Claude's zoned notice schedules a known reset with two minutes of margin", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.emit("agent.turn_ended", {
     agent,
     outcome: { kind: "completed" },
@@ -455,18 +456,19 @@ void test("Claude's zoned notice schedules a known reset with two minutes of mar
 
 void test("ambiguous multi-account usage defers to the notice's reset", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({
-    providers: [
-      {
-        providerId: "claude",
-        windows: [{ resetsAt: "2026-10-03T18:00:00Z", usedPct: 100 }],
-      },
-      {
-        providerId: "claude",
-        windows: [{ resetsAt: "2026-10-03T13:00:00Z", usedPct: 100 }],
-      },
-    ],
-  });
+  h.behavior.usage = async () =>
+    await Promise.resolve({
+      providers: [
+        {
+          providerId: "claude",
+          windows: [{ resetsAt: "2026-10-03T18:00:00Z", usedPct: 100 }],
+        },
+        {
+          providerId: "claude",
+          windows: [{ resetsAt: "2026-10-03T13:00:00Z", usedPct: 100 }],
+        },
+      ],
+    });
   await h.emit("agent.turn_ended", {
     agent,
     outcome: { kind: "completed" },
@@ -484,17 +486,18 @@ void test("ambiguous multi-account usage defers to the notice's reset", async (t
 
 void test("an estimated job rechecks expired usage and retains its job ID", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.limited("You've hit your usage limit");
   const original = h.stored();
-  h.behavior.usage = async () => ({
-    providers: [
-      {
-        providerId: "claude",
-        windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
-      },
-    ],
-  });
+  h.behavior.usage = async () =>
+    await Promise.resolve({
+      providers: [
+        {
+          providerId: "claude",
+          windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
+        },
+      ],
+    });
   await h.tick(301_000);
   assert.equal(h.sent.length, 0);
   assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
@@ -508,7 +511,7 @@ void test("an estimated job rechecks expired usage and retains its job ID", asyn
 
 void test("cancelling during a usage recheck cannot restore the estimated job", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.limited("You've hit your usage limit");
   const gate = deferred();
   h.behavior.usage = async () => {
@@ -533,22 +536,22 @@ void test("cancelling during a usage recheck cannot restore the estimated job", 
 
 void test("a failed usage recheck retains the estimate and tries again", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.limited("You've hit your usage limit");
   const original = h.store().get(agent.id);
-  h.behavior.usage = async () => {
-    throw new Error("usage unavailable");
-  };
+  h.behavior.usage = async () =>
+    await Promise.reject(new Error("usage unavailable"));
   await h.tick(301_000);
   assert.deepEqual(h.store().get(agent.id), original);
-  h.behavior.usage = async () => ({
-    providers: [
-      {
-        providerId: "claude",
-        windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
-      },
-    ],
-  });
+  h.behavior.usage = async () =>
+    await Promise.resolve({
+      providers: [
+        {
+          providerId: "claude",
+          windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
+        },
+      ],
+    });
   await h.tick(301_000);
   assert.equal(h.store().get(agent.id)?.basis, "reset");
   assert.equal(h.sent.length, 0);
@@ -688,18 +691,19 @@ void test("a message starting during refresh defers the resume without losing it
 
 void test("usage rechecks keep the resume while a message turn is running", async (t) => {
   const h = setup(t);
-  h.behavior.usage = async () => ({ providers: [] });
+  h.behavior.usage = async () => await Promise.resolve({ providers: [] });
   await h.limited("You've hit your usage limit");
   await h.start("message");
   h.setSnapshot({ archivedAt: null, provider: "claude", status: "running" });
-  h.behavior.usage = async () => ({
-    providers: [
-      {
-        providerId: "claude",
-        windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
-      },
-    ],
-  });
+  h.behavior.usage = async () =>
+    await Promise.resolve({
+      providers: [
+        {
+          providerId: "claude",
+          windows: [{ resetsAt: "2026-10-03T15:00:00Z", usedPct: 100 }],
+        },
+      ],
+    });
   await h.tick(301_000);
   assert.equal(h.sent.length, 0);
   assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
@@ -841,7 +845,7 @@ void test("resume now during a timed attempt sends one prompt", async (t) => {
 void test("a failed delivery is shown as a retry, not an unknown reset", async (t) => {
   const h = setup(t);
   h.behavior.send = async () => {
-    throw new Error("disconnected");
+    await Promise.reject(new Error("disconnected"));
   };
   await h.limited();
   await h.tick();
@@ -944,14 +948,15 @@ void test("a queued attempt cannot resume a replacement job early", async (t) =>
 void test("the observed Codex quota failure resumes even when usage reports only 98 percent", async (t) => {
   const h = setup(t);
   const reset = new Date(2026, 9, 3, 16, 6);
-  h.behavior.usage = async () => ({
-    providers: [
-      {
-        providerId: "codex",
-        windows: [{ resetsAt: reset.toISOString(), usedPct: 98 }],
-      },
-    ],
-  });
+  h.behavior.usage = async () =>
+    await Promise.resolve({
+      providers: [
+        {
+          providerId: "codex",
+          windows: [{ resetsAt: reset.toISOString(), usedPct: 98 }],
+        },
+      ],
+    });
   await h.emit("agent.turn_ended", {
     agent: { ...agent, provider: "codex" },
     outcome: {
