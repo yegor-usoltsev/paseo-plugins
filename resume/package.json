@@ -1,7 +1,7 @@
 {
   "name": "paseo-resume",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "files": [
     "paseo-plugin.json",
     "index.client.ts",
@@ -13,7 +13,6 @@
     "shared/"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
     "test": "node --test server/*.test.ts client/*.test.ts"
   },
   "dependencies": {
