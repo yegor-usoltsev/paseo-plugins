@@ -1,5 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "group:all", ":reviewer(yegor-usoltsev)"],
-  "schedule": ["on the 10th day of the month"]
+  "schedule": ["on the 10th day of the month"],
+  "packageRules": [
+    {
+      "description": "Plugin dependencies follow the paseo plugin init template.",
+      "matchFileNames": ["*/package.json"],
+      "enabled": false
+    }
+  ]
 }
