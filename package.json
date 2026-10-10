@@ -7,22 +7,19 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "bun run --filter '*' test",
-    "lint": "bun run --filter '*' typecheck && ultracite check",
-    "lint:fix": "bun run --filter '*' typecheck && ultracite fix",
+    "test": "npm test --workspaces",
+    "lint": "npm run typecheck --workspaces && ultracite check",
+    "lint:fix": "npm run typecheck --workspaces && ultracite fix",
     "prepare": "husky"
   },
   "devDependencies": {
     "eslint-plugin-github": "6.1.2",
-    "eslint-plugin-jsdoc": "65.2.4",
     "eslint-plugin-sonarjs": "4.2.2",
-    "eslint-plugin-tsdoc": "0.5.4",
     "husky": "9.1.7",
     "oxfmt": "0.72.0",
     "oxlint": "1.87.0",
     "oxlint-plugin-react-doctor": "0.9.17",
     "oxlint-tsgolint": "7.0.2003",
     "ultracite": "7.12.4"
-  },
-  "packageManager": "bun@1.4.3"
+  }
 }

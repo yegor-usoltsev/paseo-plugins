@@ -8,32 +8,26 @@ import type {
   PluginTurnOutcome,
 } from "@getpaseo/plugin/server";
 
-import { connectDaemon } from "./server/connection";
+import { connectDaemon } from "./server/connection.ts";
 import {
   limitMessage,
   providerWindows,
   retryTimeFromMessage,
   retryTimeFromUsage,
-} from "./server/limit";
-import { PendingStore } from "./server/pending";
-import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk";
-import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc";
-import { STATUS_KIND, STATUS_ROW_ID } from "./shared/status";
-import type { ResumeStatus } from "./shared/status";
+} from "./server/limit.ts";
+import { PendingStore } from "./server/pending.ts";
+import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
+import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc.ts";
+import { STATUS_KIND, STATUS_ROW_ID } from "./shared/status.ts";
+import type { ResumeStatus } from "./shared/status.ts";
 
 const RESUME_PROMPT =
   "Your previous turn stopped on the provider usage limit, which has now reset. Continue where you left off.";
-// Resume shortly after the reset rather than racing the provider's clock.
 const AFTER_RESET_MS = 2 * 60_000;
-// Used when neither the usage windows nor the message give a reset time.
 const FALLBACK_MS = 30 * 60_000;
 const RETRY_MS = 5 * 60_000;
-// Paseo 0.10.3 caches provider usage for five minutes without a public refresh
-// option. Recheck estimates after that cache has expired.
 const USAGE_REFRESH_MS = 5 * 60_000 + 1000;
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
-// Steer never interrupts a running turn and starts a normal one on an idle
-// agent.
 const STEER: PaseoAgentSendOptions = { activeTurnBehavior: "steer" };
 
 type Outcome = "sent" | "skipped" | "retrying" | "busy";
@@ -65,8 +59,6 @@ interface ResumeAttempt {
 const isArchived = (agent: { archivedAt?: string | null }) =>
   (agent.archivedAt ?? "") !== "";
 
-// A parent can miss the child's finish notification after a limit stop
-// (getpaseo/paseo#3875), so tell it directly in paseo-peer's envelope.
 const notifyParent = async (
   parentId: string,
   childId: string,
@@ -84,14 +76,6 @@ const notifyParent = async (
   await parent.send(text, STEER);
 };
 
-/**
- * Registers the resume plugin on the daemon: schedules a resume after each
- * usage-limit stop and serves the pending-resume RPCs.
- *
- * @param server - The daemon-side plugin context.
- * @param connect - Opens the startup SDK connection; tests replace it.
- * @returns Cleanup that stops the timers and closes the startup connection.
- */
 export default function contribute(
   server: PluginServerContext,
   connect = connectDaemon
@@ -101,15 +85,10 @@ export default function contribute(
   const pending = new PendingStore(paseoHome);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const usageTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  // Bumped whenever an agent's pending resume is cancelled, so a schedule()
-  // still waiting on the usage lookup can tell it is stale.
   const epochs = new Map<string, number>();
-  // Agents this plugin has just prompted, mapped to their parent.
   const resuming = new Map<string, ResumeAttempt>();
-  // Plugin code reaches the SDK only through hook contexts.
   let paseo: PaseoApi | null = null;
   let disposed = false;
-  // One attempt per agent at a time, so "Resume now" and the timer cannot both send.
   const inflight = new Map<
     string,
     { entry: ReturnType<PendingStore["get"]>; promise: Promise<Outcome> }
@@ -117,7 +96,6 @@ export default function contribute(
 
   const epochOf = (agentId: string) => epochs.get(agentId) ?? 0;
 
-  // Each limit stop gets its own row, which later reads resumed or cancelled.
   const showStatus = async (
     agentId: string,
     rowId: string | undefined,
@@ -181,7 +159,6 @@ export default function contribute(
     );
   };
 
-  // A usage recheck that finds no reset arms the next one.
   const recheckUsage = async (agentId: string): Promise<void> => {
     usageTimers.delete(agentId);
     const entry = pending.get(agentId);
@@ -283,8 +260,6 @@ export default function contribute(
       }
       resuming.set(agentId, attempt);
       await handle.send(RESUME_PROMPT, STEER);
-      // The started/ended hooks may already have consumed this job and even
-      // scheduled a new limit retry while send() was awaiting its response.
       if (current()) {
         pending.delete(agentId);
       }
@@ -309,7 +284,6 @@ export default function contribute(
     }
   };
 
-  // Forgets the attempt once it settles, so the next one can start.
   const settleAttempt = async (
     agentId: string,
     attempt: Promise<Outcome>
@@ -321,8 +295,6 @@ export default function contribute(
     }
   };
 
-  // A due timer starts a resume, and a deferred or failed resume arms the next
-  // timer.
   const resume = async (agentId: string): Promise<Outcome> => {
     const entry = pending.get(agentId);
     const running = inflight.get(agentId);
@@ -330,8 +302,6 @@ export default function contribute(
       if (running.entry === entry) {
         return await running.promise;
       }
-      // A resumed turn may hit its limit again before the first send returns.
-      // Its next timer must wait for that send, then attempt the new job.
       await running.promise;
       return disposed || pending.get(agentId) !== entry
         ? "skipped"
@@ -347,8 +317,6 @@ export default function contribute(
     message: string,
     api: PaseoApi
   ): Promise<void> => {
-    // A later limit stop supersedes any earlier lookup or delivery, while
-    // ordinary messages leave the scheduled continuation intact.
     const epoch = invalidate(agent.id);
     const previous = pending.get(agent.id);
     const now = new Date();
@@ -363,7 +331,6 @@ export default function contribute(
     } catch (error) {
       console.error("Cannot read provider usage", error);
     }
-    // Cancellation, a later limit stop or plugin shutdown wins this lookup.
     if (disposed || epochOf(agent.id) !== epoch) {
       return;
     }
@@ -418,7 +385,6 @@ export default function contribute(
         state: "resumed",
       });
     } else {
-      // A message turn must not inherit our resume's parent notification.
       resuming.delete(agent.id);
     }
   });

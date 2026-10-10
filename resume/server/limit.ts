@@ -1,12 +1,7 @@
 import type { PluginTurnOutcome } from "@getpaseo/plugin/server";
 
-import type { AgentTimelineItem } from "./sdk";
+import type { AgentTimelineItem } from "./sdk.ts";
 
-// Codex fails the turn with "You've hit your usage limit. ... try again at Sep
-// 26th, 2026 11:33 AM.", or "try again at 4:06 PM." when the reset is within a
-// day. Claude Code ends the turn with a notice that is the
-// whole message, such as "You've hit your session limit · resets 3:40pm (UTC)".
-// Short-lived API throttling is the provider's own retry business, not ours.
 const CODEX_FAILURE = /^you['’]ve hit your usage limit(?:[.!]|$)/iu;
 const NOTICE =
   /^(?:claude ai usage limit reached|you['’]ve hit your (?:(?:usage|session) )?limit)(?:\s*[·•|]\s*resets\b[^\n]*|\|\d+)?\.?$/iu;
@@ -20,14 +15,6 @@ const FAILURE_PATTERNS = new Map([
   ["codex", CODEX_FAILURE],
 ]);
 
-/**
- * Recognises a turn that stopped on a usage limit.
- *
- * @param provider - The agent's provider ID.
- * @param outcome - How the turn ended.
- * @param timeline - The turn's timeline.
- * @returns The limit message, or null for any other stop.
- */
 export const limitMessage = (
   provider: string,
   outcome: PluginTurnOutcome,
@@ -53,8 +40,6 @@ export const limitMessage = (
   return NOTICE.test(text) ? text : null;
 };
 
-// Resolve a wall-clock time using the notice's zone, independently of the
-// daemon's TZ. Check both sides of a DST transition to retain repeated hours.
 const nextZonedTime = (
   hour: number,
   minute: number,
@@ -94,7 +79,6 @@ const nextZonedTime = (
   const day = 24 * 60 * 60_000;
   const today = new Date(wallTime(now.getTime()));
   today.setUTCHours(hour, minute, 0, 0);
-  // A nonexistent spring-forward time is skipped until the next day.
   for (let days = 0; days < 3; days += 1) {
     const wanted = today.getTime() + days * day;
     const offsets = new Set(
@@ -119,13 +103,6 @@ const hourOfDay = (hour: string, half: string) =>
 const isValidTime = (hour: string, minute: string) =>
   Number(hour) >= 1 && Number(hour) <= 12 && Number(minute) <= 59;
 
-/**
- * Reads Claude's zoned reset or Codex's local "try again at" time.
- *
- * @param message - The limit message.
- * @param now - The current time.
- * @returns The reset time, or null when the message gives none.
- */
 export const retryTimeFromMessage = (
   message: string,
   now: Date
@@ -157,7 +134,6 @@ export const retryTimeFromMessage = (
     return null;
   }
   parsed.setHours(hourOfDay(hour, half), Number(minute), 0, 0);
-  // A time without a date is the next such time of day.
   if (!dated && parsed <= now) {
     parsed.setDate(parsed.getDate() + 1);
   }
@@ -177,21 +153,8 @@ interface ProviderUsage {
   windows: readonly UsageWindow[];
 }
 
-// Model, feature and code-review quotas. Codex 0.11 prefixes their IDs with a
-// scope ("limit:<feature>:five_hour"), Claude 0.11 names them
-// "weekly_<model|surface>_<id>", and Codex 0.10 reports "code_review".
 const SCOPED_WINDOW = /:|^weekly_|^code_review$/u;
 
-/**
- * The provider's windows that bound any of its agents. Paseo 0.11 lists each
- * discovered account under the same provider ID without saying which one an
- * agent uses, so several entries are ambiguous. Scoped quotas never apply to
- * every agent; when summary flags are present, only those windows do.
- *
- * @param providers - The usage report's providers.
- * @param provider - The agent's provider family.
- * @returns The applicable windows, or none when the report is ambiguous.
- */
 export const providerWindows = (
   providers: readonly ProviderUsage[],
   provider: string
@@ -211,14 +174,6 @@ export const providerWindows = (
     : windows;
 };
 
-/**
- * Finds the latest reset among the provider's exhausted windows that are still
- * in the future.
- *
- * @param windows - The windows that bound the agent.
- * @param now - The current time.
- * @returns The reset time, or null when no exhausted window resets later.
- */
 export const retryTimeFromUsage = (
   windows: readonly UsageWindow[],
   now: Date

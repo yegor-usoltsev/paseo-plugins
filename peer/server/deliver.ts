@@ -1,6 +1,6 @@
-import { wrap } from "../shared/envelope";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
-import type { SendRequest, SendResult } from "./socket";
+import { wrap } from "../shared/envelope.ts";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
+import type { SendRequest, SendResult } from "./socket.ts";
 
 interface Recipient {
   id: string;
@@ -10,11 +10,8 @@ interface Recipient {
 const FULL_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
-// Steer joins a running turn and starts a normal one when the agent is idle.
-// Without it the daemon interrupts a running turn and cancels its subagents.
 const STEER: PaseoAgentSendOptions = { activeTurnBehavior: "steer" };
 
-// Lists every agent page from the cursor on and keeps the matching agents.
 const findMatches = async (
   paseo: PaseoApi,
   wanted: string,
@@ -63,13 +60,6 @@ const resolveRecipient = async (
   );
 };
 
-/**
- * Delivers a `peer.send` message to its recipient, always in steer mode.
- *
- * @param paseo - The SDK client to send with.
- * @param request - The forwarded tool call.
- * @returns The tool result for the sending agent.
- */
 export const deliver = async (
   paseo: PaseoApi,
   request: SendRequest

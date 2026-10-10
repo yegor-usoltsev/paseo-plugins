@@ -1,7 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-import { basisSchema } from "./status";
+import { basisSchema } from "./status.ts";
 
 export const pendingEntrySchema = z.object({
   agentId: z.string(),
@@ -11,7 +11,6 @@ export const pendingEntrySchema = z.object({
   resumeAt: z.string(),
 });
 
-/** A pending resume, as the composer pill shows it. */
 export type PendingEntry = z.output<typeof pendingEntrySchema>;
 
 export const listPendingRpc = defineRpc({

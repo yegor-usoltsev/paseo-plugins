@@ -8,7 +8,7 @@ import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { WebSocketLike } from "@getpaseo/client/internal/daemon-client-transport-types";
 import { WebSocket } from "ws";
 
-import type { PaseoApi } from "./sdk";
+import type { PaseoApi } from "./sdk.ts";
 
 interface DaemonTarget {
   url: string;
@@ -27,12 +27,6 @@ const isPidFile = (value: unknown): value is PidFile =>
   "listen" in value &&
   typeof value.listen === "string";
 
-/**
- * Resolves the daemon's own listen address to a WebSocket target.
- *
- * @param listen - The `listen` value from the daemon PID file.
- * @returns The WebSocket URL, plus the socket path for a Unix socket.
- */
 export const daemonTarget = (listen: string): DaemonTarget => {
   if (listen.startsWith("unix://") || listen.startsWith("/")) {
     const socketPath = listen.replace(/^unix:\/\//u, "");
@@ -55,15 +49,6 @@ export const daemonTarget = (listen: string): DaemonTarget => {
   return { url: url.toString() };
 };
 
-/**
- * Opens a scoped local SDK connection on first use. The host exposes its SDK
- * only in event and RPC contexts, so requests that arrive before the first
- * context after reload use this connection.
- *
- * @param paseoHome - The Paseo home whose PID file and local credential to use.
- * @returns A connection whose `get` connects on demand and retries after a
- * failure, and whose `close` disconnects for good.
- */
 export const connectDaemon = (paseoHome: string) => {
   let ready: Promise<PaseoApi> | null = null;
   let client: DaemonClient | null = null;
@@ -100,9 +85,7 @@ export const connectDaemon = (paseoHome: string) => {
           socketOptions.socketPath = target.socketPath;
         }
         const socket = new WebSocket(url, options?.protocols, socketOptions);
-        // SAFETY: ws implements the event API the daemon client uses; only its
-        // typed listener overloads differ from the SDK's string-keyed ones.
-        // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- ws's types cannot be assigned to WebSocketLike without widening to unknown.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: ws implements the event API the daemon client uses; only its typed listener overloads differ from the SDK's string-keyed ones.
         return socket as unknown as WebSocketLike;
       },
     });
@@ -114,7 +97,6 @@ export const connectDaemon = (paseoHome: string) => {
     return api;
   };
 
-  // A failed connect is forgotten, so the next request retries it.
   const connect = async (): Promise<PaseoApi> => {
     try {
       return await open();

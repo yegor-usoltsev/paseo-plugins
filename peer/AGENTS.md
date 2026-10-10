@@ -4,7 +4,7 @@ The plugin targets Paseo and its SDK 0.11.2 or later. Always send with `activeTu
 
 In Paseo.app, `process.execPath` is Electron. Provider launch strips `ELECTRON_RUN_AS_NODE`; the injected stdio MCP server must explicitly restore it in its own environment.
 
-`bun test` runs the `node:test` suites directly from TypeScript. Delivery tests use an in-memory SDK and never send live agent messages.
+`npm test` runs TypeScript directly with Node 24. Keep `.ts` extensions on runtime imports reached by the tests. Delivery tests use an in-memory SDK and never send live agent messages.
 
 Outgoing timeline results differ by provider: Codex retains the MCP result object; Claude wraps successful text in `detail.output.output` and puts failed text in `error.content`. MCP `isError` must also be checked because a completed host tool call does not guarantee delivery.
 

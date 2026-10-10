@@ -6,7 +6,7 @@ import {
   providerWindows,
   retryTimeFromMessage,
   retryTimeFromUsage,
-} from "./limit";
+} from "./limit.ts";
 
 const codexNotice =
   "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 26th, 2026 11:33 AM.";
@@ -255,7 +255,6 @@ void test("model and feature quotas are ignored when summary windows are flagged
     retryTimeFromUsage(applicable, now),
     new Date("2026-10-03T13:00:00Z")
   );
-  // Paseo 0.10 reports no summary flags, so every window still applies.
   const unflagged = windows.map(({ resetsAt, usedPct }) => ({
     resetsAt,
     usedPct,
@@ -274,7 +273,6 @@ const scoped = (id: string) => ({
 });
 
 void test("reports with only scoped quotas give no usage windows", () => {
-  // Paseo 0.11 omits the summary flag from scoped windows rather than setting it false.
   const codex = [
     scoped("limit:other-model:five_hour"),
     scoped("code_review:weekly"),

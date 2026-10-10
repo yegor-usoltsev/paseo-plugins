@@ -3,14 +3,12 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import type { ResumeBasis } from "../shared/status";
+import type { ResumeBasis } from "../shared/status.ts";
 
-/** A scheduled resume, as the state file stores it. */
 export interface PendingResume {
   resumeAt: string;
   parentAgentId: string | null;
   basis?: ResumeBasis;
-  // The chat row that reports this limit stop.
   rowId?: string;
 }
 
@@ -23,16 +21,10 @@ const isPendingResume = (value: unknown): value is PendingResume =>
   typeof value.resumeAt === "string" &&
   !Number.isNaN(Date.parse(value.resumeAt));
 
-/** Pending resumes, persisted so they survive a daemon restart. */
 export class PendingStore {
   private readonly path: string;
   private readonly entries: Map<string, PendingResume>;
 
-  /**
-   * Loads the pending resumes of a Paseo home from the state directory.
-   *
-   * @param paseoHome - The Paseo home whose resumes to load.
-   */
   constructor(paseoHome: string) {
     const xdgStateHome = process.env.XDG_STATE_HOME ?? "";
     const stateHome =
@@ -47,36 +39,19 @@ export class PendingStore {
     this.entries = new Map(Object.entries(this.read()));
   }
 
-  /** @returns Every pending resume with its agent ID. */
   all(): [string, PendingResume][] {
     return [...this.entries];
   }
 
-  /**
-   * @param agentId - The agent to look up.
-   * @returns The agent's pending resume, if any.
-   */
   get(agentId: string): PendingResume | undefined {
     return this.entries.get(agentId);
   }
 
-  /**
-   * Saves an agent's pending resume, replacing any earlier one.
-   *
-   * @param agentId - The agent to resume.
-   * @param entry - The resume to save.
-   */
   set(agentId: string, entry: PendingResume): void {
     this.entries.set(agentId, entry);
     this.write();
   }
 
-  /**
-   * Removes an agent's pending resume.
-   *
-   * @param agentId - The agent whose resume to remove.
-   * @returns Whether a resume existed.
-   */
   delete(agentId: string): boolean {
     const existed = this.entries.delete(agentId);
     if (existed) {

@@ -1,22 +1,16 @@
-// Paseo compiles plugins without their node_modules, so every type comes from
-// @getpaseo/plugin, which the host provides.
 import type { PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
 
-/** A tool-call item as the timeline transformer receives it. */
 export type ToolCallItem = Parameters<
   PluginTimelineTransformerContribution<"tool_call">["transform"]
 >[0]["item"];
 
-// Codex names MCP tools "<server>.<tool>"; Claude Code names them "mcp__<server>__<tool>".
 const SEND_TOOL = /^(?:peer\.send|mcp__peer__send)$/u;
 const RECIPIENT =
   /(?:\(|Delivered to )(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)?\.$/iu;
 
-/** A sender's own `peer.send` call, as its outgoing card shows it. */
 export interface OutgoingMessage {
   to: string;
-  // The resolved recipient, once delivery has reported it.
   recipientId: string | null;
   body: string;
   status: "sending" | "delivered" | "failed";
@@ -33,9 +27,6 @@ const joinTextParts = (parts: unknown[]) =>
     })
     .join("\n");
 
-// Reads the text of a tool result, or null when it has none. Codex keeps the
-// MCP result; Claude wraps successful text in output and keeps failed text
-// blocks in the tool call's error.content.
 const resultTextSchema: z.ZodType<string | null> = z.lazy(() =>
   z
     .union([
@@ -68,12 +59,6 @@ const deliveryStatus = (
   return status === "completed" ? "delivered" : "sending";
 };
 
-/**
- * Reads a `peer.send` tool call.
- *
- * @param item - A tool-call item from the timeline.
- * @returns The outgoing message, or null for any other item.
- */
 export const outgoingMessage = (item: ToolCallItem): OutgoingMessage | null => {
   if (
     item.type !== "tool_call" ||

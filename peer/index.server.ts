@@ -7,19 +7,11 @@ import type {
   PluginServerContext,
 } from "@getpaseo/plugin/server";
 
-import { connectDaemon } from "./server/connection";
-import { deliver } from "./server/deliver";
-import { SHIM_SOURCE } from "./server/shim";
-import { listen, socketPath } from "./server/socket";
+import { connectDaemon } from "./server/connection.ts";
+import { deliver } from "./server/deliver.ts";
+import { SHIM_SOURCE } from "./server/shim.ts";
+import { listen, socketPath } from "./server/socket.ts";
 
-/**
- * Registers the peer plugin on the daemon: gives every new agent the `peer`
- * MCP server and delivers its sends.
- *
- * @param server - The daemon-side plugin context.
- * @param connect - Opens the startup SDK connection; tests replace it.
- * @returns Cleanup that closes the socket and the startup connection.
- */
 export default function contribute(
   server: PluginServerContext,
   connect = connectDaemon
@@ -29,7 +21,6 @@ export default function contribute(
   const connection = connect(paseoHome);
   let paseo: Parameters<typeof deliver>[0] | null = null;
 
-  // Give every new agent the `peer` MCP server.
   server.before("agent.create", ({ request }, context) => {
     ({ paseo } = context);
     return {
@@ -38,8 +29,6 @@ export default function contribute(
         ...request.config,
         mcpServers: {
           ...request.config.mcpServers,
-          // In Paseo.app execPath is Electron, and provider launches strip
-          // ELECTRON_RUN_AS_NODE, so ask for Node mode explicitly.
           peer: {
             args: ["-e", SHIM_SOURCE, socket],
             command: process.execPath,
@@ -50,7 +39,6 @@ export default function contribute(
       },
     };
   });
-  // Reuse the host connection as soon as a hook provides it.
   const capture = (
     _event: PluginLifecycleEvents["agent.turn_started" | "agent.turn_ended"],
     context: PluginHookContext

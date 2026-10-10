@@ -7,8 +7,8 @@ import type {
   PluginComposerPillContribution,
 } from "@getpaseo/plugin/client";
 
-import type { PendingEntry } from "../shared/rpc";
-import { createPendingMonitor } from "./pending-monitor";
+import type { PendingEntry } from "../shared/rpc.ts";
+import { createPendingMonitor } from "./pending-monitor.ts";
 
 const entry: PendingEntry = {
   agentId: "old-agent",
@@ -17,7 +17,6 @@ const entry: PendingEntry = {
   jobId: "job",
   resumeAt: "2026-10-03T13:00:00Z",
 };
-// Lets pending promise chains run for at least this many microtask ticks.
 const flush = async (ticks = 30): Promise<void> => {
   if (ticks > 0) {
     await Promise.resolve();
@@ -120,8 +119,7 @@ const setup = (t: TestContext, observeFails = false) => {
       return await behavior.rpc();
     },
   };
-  // SAFETY: the fake implements only the client members the monitor uses.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin client.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the client members the monitor uses.
   const client = fakeClient as unknown as PluginClientContext;
   const monitor = createPendingMonitor(client, () => null);
   t.after(() => {

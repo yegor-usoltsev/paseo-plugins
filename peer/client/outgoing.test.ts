@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { outgoingMessage } from "./outgoing";
-import type { ToolCallItem } from "./outgoing";
+import { outgoingMessage } from "./outgoing.ts";
+import type { ToolCallItem } from "./outgoing.ts";
 
 const id = "edd464fe-6761-4d1f-8075-deb619c0d3a1";
 const call = (name: string, status: string, text: string | null) => {
@@ -18,8 +18,7 @@ const call = (name: string, status: string, text: string | null) => {
     status,
     type: "tool_call",
   };
-  // SAFETY: the fixture builds only the tool-call fields outgoingMessage reads.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- Fixtures use free-form status strings.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fixture builds only the tool-call fields outgoingMessage reads.
   return item as unknown as ToolCallItem;
 };
 

@@ -10,10 +10,10 @@ import type {
   PluginLifecycleEvents,
 } from "@getpaseo/plugin/server";
 
-import contribute from "../index.server";
-import type { PendingEntry } from "../shared/rpc";
-import { PendingStore } from "./pending";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
+import contribute from "../index.server.ts";
+import type { PendingEntry } from "../shared/rpc.ts";
+import { PendingStore } from "./pending.ts";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 const agent = {
@@ -25,7 +25,6 @@ const agent = {
   workspaceId: null,
 };
 const notice = "You've hit your session limit · resets 3:40pm (UTC)";
-// Lets pending promise chains run for at least this many microtask ticks.
 const flush = async (ticks = 30): Promise<void> => {
   if (ticks > 0) {
     await Promise.resolve();
@@ -121,8 +120,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
     },
     providers: { listUsage: async () => await behavior.usage() },
   };
-  // SAFETY: the fake implements only the SDK members these tests exercise.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the SDK members these tests exercise.
   const api = fakeApi as unknown as PaseoApi;
   const rpcs = new Map<string, RpcHandler>();
   const fakeHost = {
@@ -130,8 +128,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
       rpcs.set(contract.name, handler),
     on: (name: string, handler: HookHandler) => hooks.set(name, handler),
   };
-  // SAFETY: the fake implements only the host registrations the plugin calls.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin host.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the host registrations the plugin calls.
   const host = fakeHost as unknown as PluginServerContext;
   const stop = contribute(host, () => ({
     close: async () => {},
@@ -190,7 +187,6 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
     assert.ok("entries" in result);
     return result;
   };
-  // Actions default to the displayed job, as the client sends it.
   const act = async (name: string, input: RpcInput) => {
     const entry = store().get(agent.id);
     const result = await rpc(name, {
@@ -939,7 +935,6 @@ void test("a queued attempt cannot resume a replacement job early", async (t) =>
   await flush();
   assert.equal(h.sent.length, 1);
   assert.deepEqual(h.store().get(agent.id), replacement);
-  // The usage window is past, so the replacement uses the notice's reset.
   assert.ok(replacement);
   await h.tick(Date.parse(replacement.resumeAt) - Date.now());
   assert.equal(h.sent.length, 2);

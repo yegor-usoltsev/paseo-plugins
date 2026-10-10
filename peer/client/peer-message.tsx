@@ -9,7 +9,7 @@ import { Platform, Pressable, Text, View } from "react-native";
 import type { TextStyle } from "react-native";
 import { z } from "zod";
 
-import { withWebTitle } from "./web";
+import { withWebTitle } from "./web.ts";
 
 export const peerMessageSchema = z.object({
   body: z.string(),
@@ -37,21 +37,15 @@ const PROVIDER_NAMES = new Map([
   ["pi", "Pi"],
 ]);
 
-// React Native Web passes this CSS property through to the DOM; React Native's
-// style types do not declare it.
 declare module "react-native" {
   interface TextStyle {
     overflowWrap?: "anywhere";
   }
 }
 
-// Long paths and URLs wrap instead of widening the card. Only the web needs
-// this.
 const WRAP_ANYWHERE: TextStyle =
   Platform.OS === "web" ? { overflowWrap: "anywhere" } : {};
 
-// Long messages fold to this many lines until expanded. React Native Web
-// reports no line layout, so length is judged from the text itself.
 const FOLDED_LINES = 12;
 const isLong = (text: string) =>
   text.split("\n").length > FOLDED_LINES || text.length > 1200;
@@ -215,11 +209,6 @@ const MessageCard = ({
   );
 };
 
-/**
- * Renders an incoming peer message as a "From <agent>" card.
- *
- * @returns The card.
- */
 export const PeerMessageCard = ({
   item,
   timestamp,
@@ -240,11 +229,6 @@ export const PeerMessageCard = ({
   );
 };
 
-/**
- * Renders the sender's own `peer.send` call as a "To <agent>" card.
- *
- * @returns The card.
- */
 export const OutgoingMessageCard = ({
   item,
   timestamp,

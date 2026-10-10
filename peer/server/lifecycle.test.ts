@@ -9,9 +9,9 @@ import { test } from "node:test";
 
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 
-import contribute from "../index.server";
-import type { PaseoApi } from "./sdk";
-import { socketPath } from "./socket";
+import contribute from "../index.server.ts";
+import type { PaseoApi } from "./sdk.ts";
+import { socketPath } from "./socket.ts";
 
 void test("a socket send after reload works without any agent event or client RPC", async (t) => {
   const home = mkdtempSync(path.join(tmpdir(), "paseo-peer-startup-test-"));
@@ -33,12 +33,10 @@ void test("a socket send after reload works without any agent event or client RP
       }),
     },
   };
-  // SAFETY: the fake implements only the SDK members these tests exercise.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the SDK members these tests exercise.
   const api = fakeApi as unknown as PaseoApi;
   const stop = contribute(
-    // SAFETY: the fake implements only the host registrations the plugin calls.
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin host.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the host registrations the plugin calls.
     { before: () => {}, on: () => {} } as unknown as PluginServerContext,
     () => ({
       close: async () => {

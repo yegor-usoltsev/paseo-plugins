@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { unwrap } from "../shared/envelope";
-import { deliver } from "./deliver";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
+import { unwrap } from "../shared/envelope.ts";
+import { deliver } from "./deliver.ts";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
 
 const id = "11111111-1111-1111-1111-111111111111";
 const fixture = (
@@ -35,8 +35,7 @@ const fixture = (
       }),
     },
   };
-  // SAFETY: the fake implements only the SDK members these tests exercise.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- SAFETY: the fake implements only the SDK members these tests exercise.
   const api = fakeApi as unknown as PaseoApi;
   return { api, cursors, sent };
 };

@@ -1,23 +1,17 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 
-import { outgoingMessage } from "./client/outgoing";
+import { outgoingMessage } from "./client/outgoing.ts";
 import {
   OutgoingMessageCard,
   outgoingSchema,
   PeerMessageCard,
   peerMessageSchema,
-} from "./client/peer-message";
-import { unwrap } from "./shared/envelope";
+} from "./client/peer-message.tsx";
+import { unwrap } from "./shared/envelope.ts";
 
 const MESSAGE_KIND = "peer-message";
 const OUTGOING_KIND = "peer-outgoing";
 
-/**
- * Registers the peer message cards in the app.
- *
- * @param client - The app-side plugin context.
- * @returns Cleanup that removes the timeline transformers and renderers.
- */
 export default function contribute(client: PluginClientContext) {
   const cleanups = [
     client.addTimelineTransformer({
@@ -45,7 +39,6 @@ export default function contribute(client: PluginClientContext) {
       schema: peerMessageSchema,
       version: 1,
     }),
-    // Shows an agent's own peer.send calls as the messages they are.
     client.addTimelineTransformer({
       id: OUTGOING_KIND,
       query: { itemType: "tool_call" },

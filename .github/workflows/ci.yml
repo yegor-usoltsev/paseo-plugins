@@ -17,13 +17,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
         with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
-      - run: bun run test
-      # Paseo prepares a Git-installed plugin with the npm command in its
-      # manifest, so each standalone lock must stay in sync.
-      - run: npm ci --prefix peer --workspaces=false --omit=dev --ignore-scripts --no-audit --no-fund
-      - run: npm ci --prefix resume --workspaces=false --omit=dev --ignore-scripts --no-audit --no-fund
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test

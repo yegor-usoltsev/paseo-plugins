@@ -2,8 +2,8 @@ import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { Text, View } from "react-native";
 
-import type { ResumeStatus } from "../shared/status";
-import { clockTime } from "./format";
+import type { ResumeStatus } from "../shared/status.ts";
+import { clockTime } from "./format.ts";
 
 const ICONS: Record<ResumeStatus["state"], string> = {
   cancelled: "AlarmClockOff",
@@ -31,12 +31,6 @@ const label = ({ state, at, basis }: ResumeStatus): string => {
     : `Usage limit reached · resumes at ${time}`;
 };
 
-/**
- * Renders a resume status row, drawn like Paseo's own compaction marker: a
- * quiet event between two rules.
- *
- * @returns The row.
- */
 export const ResumeStatusRow = ({
   item,
   theme,

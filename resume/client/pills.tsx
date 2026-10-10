@@ -6,10 +6,10 @@ import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useState, useSyncExternalStore } from "react";
 import { AppState, Pressable, Text, View } from "react-native";
 
-import { cancelResumeRpc, resumeNowRpc } from "../shared/rpc";
-import type { PendingEntry } from "../shared/rpc";
-import { clockTime, untilTime } from "./format";
-import { createPendingMonitor } from "./pending-monitor";
+import { cancelResumeRpc, resumeNowRpc } from "../shared/rpc.ts";
+import type { PendingEntry } from "../shared/rpc.ts";
+import { clockTime, untilTime } from "./format.ts";
+import { createPendingMonitor } from "./pending-monitor.ts";
 
 const EXPLANATIONS: Record<PendingEntry["basis"], string> = {
   estimate:
@@ -30,12 +30,6 @@ const explanation = (entry: PendingEntry, unavailable: boolean): string => {
   return `${EXPLANATIONS[entry.basis]} Next attempt at ${clockTime(at)}, ${untilTime(at)}.`;
 };
 
-/**
- * Shows a composer pill on every agent waiting for its usage limit to reset.
- *
- * @param client - The app-side plugin context.
- * @returns Cleanup that removes the pills.
- */
 export const contributePills = (client: PluginClientContext): (() => void) => {
   const ResumePopover = (props: PluginButtonContentProps) => {
     // oxlint-disable-next-line no-use-before-define -- The host renders the popover only after the monitor below exists, and the monitor needs the popover to add pills.

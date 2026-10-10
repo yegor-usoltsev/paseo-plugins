@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { connectDaemon, daemonTarget } from "./connection";
+import { connectDaemon, daemonTarget } from "./connection.ts";
 
 void test("the daemon's own listen address selects TCP or Unix transport", () => {
   assert.deepEqual(daemonTarget("127.0.0.1:6767"), {
@@ -31,7 +31,6 @@ void test("a missing scoped daemon cannot fall back to the live default daemon",
     rmSync(home, { force: true, recursive: true });
   });
   await assert.rejects(connection.get(), /paseo\.pid/u);
-  // A failed connect is retryable rather than a permanently rejected cache.
   await assert.rejects(connection.get(), /paseo\.pid/u);
   await connection.close();
   await assert.rejects(connection.get(), /closed/u);

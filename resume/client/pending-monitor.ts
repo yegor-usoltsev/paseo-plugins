@@ -5,9 +5,9 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { ComponentType } from "react";
 
-import { listPendingRpc } from "../shared/rpc";
-import type { PendingEntry } from "../shared/rpc";
-import { pillLabel } from "./format";
+import { listPendingRpc } from "../shared/rpc.ts";
+import type { PendingEntry } from "../shared/rpc.ts";
+import { pillLabel } from "./format.ts";
 
 const POLL_MS = 30_000;
 const SETTLE_MS = 3000;
@@ -17,14 +17,6 @@ interface Snapshot {
   unavailable: boolean;
 }
 
-/**
- * Reconciles persisted jobs independently of the agent directory's first page
- * and keeps a composer pill on each agent with a pending resume.
- *
- * @param client - The app-side plugin context.
- * @param Content - The popover each pill opens.
- * @returns The pending-resume store and its controls.
- */
 export const createPendingMonitor = (
   client: PluginClientContext,
   Content: ComponentType<PluginButtonContentProps>
@@ -100,8 +92,6 @@ export const createPendingMonitor = (
   const poll = async (): Promise<void> => {
     try {
       const { entries: list } = await client.rpc(listPendingRpc, {});
-      // A restored job may be older than all 200 agents in the directory
-      // snapshot, or the directory subscription may not be ready yet.
       await Promise.all(
         list.flatMap((entry) =>
           workspaces.has(entry.agentId) ? [] : [locate(entry)]
@@ -119,8 +109,6 @@ export const createPendingMonitor = (
     }
   };
 
-  // Clears the shared query only after it settles, so concurrent refreshes
-  // join it instead of starting another.
   const startPolling = async (): Promise<void> => {
     try {
       await poll();
@@ -176,7 +164,6 @@ export const createPendingMonitor = (
             track(update.agent);
           }
           void refresh();
-          // The schedule lands after the provider usage lookup.
           const timer = setTimeout(() => {
             settleTimers.delete(timer);
             void refresh();
@@ -201,8 +188,6 @@ export const createPendingMonitor = (
     getSnapshot: () => snapshot,
     refresh,
     async refreshAfterAction() {
-      // An existing query may have captured the schedule before the action.
-      // Join it first, then request a fresh server-confirmed snapshot.
       if (polling !== null) {
         await polling;
       }

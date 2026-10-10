@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { clockTime, pillLabel } from "./format";
+import { clockTime, pillLabel } from "./format.ts";
 
 const now = new Date("2026-10-03T12:00:00Z");
 const entry = {
