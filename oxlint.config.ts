@@ -9,7 +9,11 @@ const jsPlugins = selectJsPlugins(["sonarjs", "react-doctor", "github"]);
 export default defineConfig({
   extends: [core, react, antiSlop, jsPlugins],
   // The paseo-plugin skill is installed from upstream (skills-lock.json).
-  ignorePatterns: [...(core.ignorePatterns ?? []), ".agents/skills"],
+  ignorePatterns: [
+    ...(core.ignorePatterns ?? []),
+    ".agents/skills",
+    ".claude/skills",
+  ],
   jsPlugins: jsPlugins.jsPlugins,
   options: {
     reportUnusedDisableDirectives: "error",
