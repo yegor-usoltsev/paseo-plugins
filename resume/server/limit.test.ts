@@ -6,7 +6,7 @@ import {
   providerWindows,
   retryTimeFromMessage,
   retryTimeFromUsage,
-} from "./limit.ts";
+} from "./limit";
 
 const codexNotice =
   "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 26th, 2026 11:33 AM.";

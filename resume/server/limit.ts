@@ -1,6 +1,6 @@
 import type { PluginTurnOutcome } from "@getpaseo/plugin/server";
 
-import type { AgentTimelineItem } from "./sdk.ts";
+import type { AgentTimelineItem } from "./sdk";
 
 // Codex fails the turn with "You've hit your usage limit. ... try again at Sep
 // 26th, 2026 11:33 AM.", or "try again at 4:06 PM." when the reset is within a

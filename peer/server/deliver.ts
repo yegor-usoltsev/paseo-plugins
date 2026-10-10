@@ -1,5 +1,5 @@
-import { wrap } from "../shared/envelope.ts";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
+import { wrap } from "../shared/envelope";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
 import type { SendRequest, SendResult } from "./socket";
 
 interface Recipient {
@@ -12,9 +12,7 @@ const FULL_ID =
 
 // Steer joins a running turn and starts a normal one when the agent is idle.
 // Without it the daemon interrupts a running turn and cancels its subagents.
-// SAFETY: the 0.10.3 SDK forwards this option but does not declare it.
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The daemon accepts an option the SDK's send-options type omits.
-const STEER = { activeTurnBehavior: "steer" } as PaseoAgentSendOptions;
+const STEER: PaseoAgentSendOptions = { activeTurnBehavior: "steer" };
 
 // Lists every agent page from the cursor on and keeps the matching agents.
 const findMatches = async (

@@ -10,10 +10,10 @@ import type {
   PluginLifecycleEvents,
 } from "@getpaseo/plugin/server";
 
-import contribute from "../index.server.ts";
-import type { PendingEntry } from "../shared/rpc.ts";
-import { PendingStore } from "./pending.ts";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
+import contribute from "../index.server";
+import type { PendingEntry } from "../shared/rpc";
+import { PendingStore } from "./pending";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 const agent = {

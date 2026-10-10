@@ -7,8 +7,8 @@ import type {
   PluginComposerPillContribution,
 } from "@getpaseo/plugin/client";
 
-import type { PendingEntry } from "../shared/rpc.ts";
-import { createPendingMonitor } from "./pending-monitor.ts";
+import type { PendingEntry } from "../shared/rpc";
+import { createPendingMonitor } from "./pending-monitor";
 
 const entry: PendingEntry = {
   agentId: "old-agent",

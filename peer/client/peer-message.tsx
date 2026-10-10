@@ -9,6 +9,8 @@ import { Platform, Pressable, Text, View } from "react-native";
 import type { TextStyle } from "react-native";
 import { z } from "zod";
 
+import { withWebTitle } from "./web";
+
 export const peerMessageSchema = z.object({
   body: z.string(),
   senderId: z.string(),
@@ -131,14 +133,7 @@ function MessageCard({
     >
       <View style={{ alignItems: "center", flexDirection: "row", gap: 6 }}>
         <Icon name={icon} size={14} color={colors.foregroundMuted} />
-        {Platform.OS === "web" ? (
-          // oxlint-disable-next-line github/a11y-no-title-attribute -- The web tooltip shows the full agent title on hover; accessibilityHint carries it for assistive technology.
-          <span title={title} style={{ flexShrink: 1, minWidth: 0 }}>
-            {headingText}
-          </span>
-        ) : (
-          headingText
-        )}
+        {withWebTitle(title, headingText)}
         {agentId === null ? null : (
           <Pressable
             accessibilityRole="button"

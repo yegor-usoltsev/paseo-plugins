@@ -1,4 +1,4 @@
-import type { PendingEntry } from "../shared/rpc.ts";
+import type { PendingEntry } from "../shared/rpc";
 
 // Times are shown in the client's own time zone: the daemon may run elsewhere.
 

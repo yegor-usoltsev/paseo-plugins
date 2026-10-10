@@ -1,6 +1,6 @@
 # paseo-peer
 
-The installed SDK is 0.10.3. The daemon accepts `activeTurnBehavior: "steer"`, but the SDK's send-options type omits it; preserve the explicit cast. Always steer, including for an idle snapshot: status can change before delivery.
+The plugin targets Paseo and its SDK 0.11.2 or later. Always send with `activeTurnBehavior: "steer"`, including for an idle snapshot: status can change before delivery.
 
 In Paseo.app, `process.execPath` is Electron. Provider launch strips `ELECTRON_RUN_AS_NODE`; the injected stdio MCP server must explicitly restore it in its own environment.
 

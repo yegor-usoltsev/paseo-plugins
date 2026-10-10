@@ -9,7 +9,7 @@ Plugins for [Paseo](https://paseo.sh) that let coding agents work through the ni
 
 ## Install
 
-You need Paseo 0.10.3 or later and npm on the daemon host. GitHub installation installs each plugin’s locked runtime dependencies automatically. On the daemon host, run:
+You need Paseo 0.11.2 or later and npm on the daemon host. GitHub installation installs each plugin’s locked runtime dependencies automatically. On the daemon host, run:
 
 ```sh
 paseo plugin install github:yegor-usoltsev/paseo-plugins:peer

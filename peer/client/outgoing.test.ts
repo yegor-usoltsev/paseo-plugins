@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { outgoingMessage } from "./outgoing.ts";
-import type { ToolCallItem } from "./outgoing.ts";
+import { outgoingMessage } from "./outgoing";
+import type { ToolCallItem } from "./outgoing";
 
 const id = "edd464fe-6761-4d1f-8075-deb619c0d3a1";
 const call = (name: string, status: string, text: string | null) => {

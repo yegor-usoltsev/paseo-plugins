@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { connectDaemon, daemonTarget } from "./connection.ts";
+import { connectDaemon, daemonTarget } from "./connection";
 
 test("the daemon's own listen address selects TCP or Unix transport", () => {
   assert.deepEqual(daemonTarget("127.0.0.1:6767"), {

@@ -1,6 +1,6 @@
 # paseo-resume
 
-The installed SDK is 0.10.3. The daemon accepts `activeTurnBehavior: "steer"`, but the SDK's send-options type omits it; preserve the explicit cast. Plugin SDK access comes from hook contexts; before the first context, restored jobs use their own authenticated local SDK connection and always steer. Never reintroduce plain CLI send: it can interrupt a turn that starts after inspection.
+The plugin targets Paseo and its SDK 0.11.2 or later. Always send with `activeTurnBehavior: "steer"`. Plugin SDK access comes from hook contexts; before the first context, restored jobs use their own authenticated local SDK connection and always steer. Never reintroduce plain CLI send: it can interrupt a turn that starts after inspection.
 
 Startup connections discover only `$PASEO_HOME/paseo.pid` and read that home’s local credential through the SDK auth callback. Never fall back to a default port or a shell CLI. Connection failures retain jobs and retry in five minutes. Only the host-provided SDK can append plugin timeline rows.
 

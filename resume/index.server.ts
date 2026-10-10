@@ -8,18 +8,18 @@ import type {
   PluginTurnOutcome,
 } from "@getpaseo/plugin/server";
 
-import { connectDaemon } from "./server/connection.ts";
+import { connectDaemon } from "./server/connection";
 import {
   limitMessage,
   providerWindows,
   retryTimeFromMessage,
   retryTimeFromUsage,
-} from "./server/limit.ts";
-import { PendingStore } from "./server/pending.ts";
-import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
-import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc.ts";
-import { STATUS_KIND, STATUS_ROW_ID } from "./shared/status.ts";
-import type { ResumeStatus } from "./shared/status.ts";
+} from "./server/limit";
+import { PendingStore } from "./server/pending";
+import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk";
+import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc";
+import { STATUS_KIND, STATUS_ROW_ID } from "./shared/status";
+import type { ResumeStatus } from "./shared/status";
 
 const RESUME_PROMPT =
   "Your previous turn stopped on the provider usage limit, which has now reset. Continue where you left off.";
@@ -34,9 +34,7 @@ const USAGE_REFRESH_MS = 5 * 60_000 + 1000;
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 // Steer never interrupts a running turn and starts a normal one on an idle
 // agent.
-// SAFETY: the 0.10.3 SDK forwards this option but does not declare it.
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The daemon accepts an option the SDK's send-options type omits.
-const STEER = { activeTurnBehavior: "steer" } as PaseoAgentSendOptions;
+const STEER: PaseoAgentSendOptions = { activeTurnBehavior: "steer" };
 
 type Outcome = "sent" | "skipped" | "retrying" | "busy";
 

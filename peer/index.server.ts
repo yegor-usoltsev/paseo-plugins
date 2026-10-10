@@ -7,10 +7,10 @@ import type {
   PluginServerContext,
 } from "@getpaseo/plugin/server";
 
-import { connectDaemon } from "./server/connection.ts";
-import { deliver } from "./server/deliver.ts";
-import { SHIM_SOURCE } from "./server/shim.ts";
-import { listen, socketPath } from "./server/socket.ts";
+import { connectDaemon } from "./server/connection";
+import { deliver } from "./server/deliver";
+import { SHIM_SOURCE } from "./server/shim";
+import { listen, socketPath } from "./server/socket";
 
 export default function contribute(
   server: PluginServerContext,

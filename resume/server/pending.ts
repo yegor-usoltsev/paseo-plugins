@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import type { ResumeBasis } from "../shared/status.ts";
+import type { ResumeBasis } from "../shared/status";
 
 export interface PendingResume {
   resumeAt: string;

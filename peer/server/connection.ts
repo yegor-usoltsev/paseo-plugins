@@ -8,7 +8,7 @@ import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { WebSocketLike } from "@getpaseo/client/internal/daemon-client-transport-types";
 import { WebSocket } from "ws";
 
-import type { PaseoApi } from "./sdk.ts";
+import type { PaseoApi } from "./sdk";
 
 interface DaemonTarget {
   url: string;

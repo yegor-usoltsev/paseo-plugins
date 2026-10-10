@@ -1,7 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-import { basisSchema } from "./status.ts";
+import { basisSchema } from "./status";
 
 export const pendingEntrySchema = z.object({
   agentId: z.string(),

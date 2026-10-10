@@ -5,9 +5,9 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { ComponentType } from "react";
 
-import { listPendingRpc } from "../shared/rpc.ts";
-import type { PendingEntry } from "../shared/rpc.ts";
-import { pillLabel } from "./format.ts";
+import { listPendingRpc } from "../shared/rpc";
+import type { PendingEntry } from "../shared/rpc";
+import { pillLabel } from "./format";
 
 const POLL_MS = 30_000;
 const SETTLE_MS = 3000;

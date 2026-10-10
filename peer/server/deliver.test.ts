@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { unwrap } from "../shared/envelope.ts";
-import { deliver } from "./deliver.ts";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
+import { unwrap } from "../shared/envelope";
+import { deliver } from "./deliver";
+import type { PaseoAgentSendOptions, PaseoApi } from "./sdk";
 
 const id = "11111111-1111-1111-1111-111111111111";
 const fixture = (
