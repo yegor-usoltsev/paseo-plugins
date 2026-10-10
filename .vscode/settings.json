@@ -10,6 +10,7 @@
   "editor.unicodeHighlight.ambiguousCharacters": false,
   "emmet.showExpandedAbbreviation": "never",
   "files.readonlyInclude": {
+    "**/bun.lock": true,
     "**/node_modules/**": true,
     "**/package-lock.json": true
   },

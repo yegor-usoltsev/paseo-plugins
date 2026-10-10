@@ -6,7 +6,7 @@ Startup connections discover only `$PASEO_HOME/paseo.pid` and read that home’s
 
 Provider usage is the primary reset source. Paseo 0.10.3 caches it for five minutes and the public SDK cannot force a refresh, so estimated jobs recheck after cache expiry. Since Paseo 0.11 the usage list has one entry per discovered account under the same provider ID, and the public SDK cannot tell which account an agent uses: treat several entries as no usage. Model, feature and code-review quotas never bound every agent: exclude them by window ID, because 0.11 omits `summary` from them instead of setting it false. When `summary` flags are present, only flagged windows apply. Claude notice times carry their own IANA timezone; never interpret them in the daemon's timezone. Run limit and lifecycle tests under both `TZ=UTC` and `TZ=Europe/Minsk` after reset-time changes.
 
-`npm test` runs TypeScript directly with Node 24. Keep `.ts` extensions on runtime imports reached by the tests. Lifecycle tests isolate `PASEO_HOME` and `XDG_STATE_HOME`, fake the clock and SDK connection, and never contact the live daemon.
+`bun test` runs the `node:test` suites directly from TypeScript. Lifecycle tests isolate `PASEO_HOME` and `XDG_STATE_HOME`, fake the clock and SDK connection, and never contact the live daemon.
 
 Pending records survive plugin reload. Treat every await in scheduling and delivery as a cancellation boundary. A send response can arrive after the resumed turn has already ended and scheduled its next retry, so never delete a record solely by agent ID after an await.
 

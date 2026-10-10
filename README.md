@@ -23,9 +23,9 @@ To work on the plugins, clone the repository and install from the checkout inste
 ```sh
 git clone https://github.com/yegor-usoltsev/paseo-plugins.git
 cd paseo-plugins
-npm install
-npm test
-npm run lint
+bun install
+bun run test
+bun run lint
 npm ci --prefix peer --workspaces=false --omit=dev --ignore-scripts
 npm ci --prefix resume --workspaces=false --omit=dev --ignore-scripts
 paseo plugin install "$PWD/peer"

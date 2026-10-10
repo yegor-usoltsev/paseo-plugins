@@ -7,7 +7,7 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "npm test --workspaces",
+    "test": "bun run --filter '*' test",
     "lint": "tsc -p peer && tsc -p resume && ultracite check",
     "lint:fix": "tsc -p peer && tsc -p resume && ultracite fix",
     "prepare": "husky"
@@ -31,5 +31,6 @@
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "ultracite": "7.12.4",
     "zod": "4.6.5"
-  }
+  },
+  "packageManager": "bun@1.4.3"
 }

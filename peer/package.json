@@ -13,7 +13,7 @@
     "shared/"
   ],
   "scripts": {
-    "test": "node --test server/*.test.ts client/*.test.ts"
+    "test": "bun test"
   },
   "dependencies": {
     "@getpaseo/client": "0.10.3",
