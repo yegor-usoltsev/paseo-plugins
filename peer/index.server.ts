@@ -1,7 +1,11 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 
-import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type {
+  PluginHookContext,
+  PluginLifecycleEvents,
+  PluginServerContext,
+} from "@getpaseo/plugin/server";
 
 import { connectDaemon } from "./server/connection.ts";
 import { deliver } from "./server/deliver.ts";
@@ -12,15 +16,14 @@ export default function contribute(
   server: PluginServerContext,
   connect = connectDaemon
 ) {
-  const path = socketPath(process.env.PASEO_HOME ?? join(homedir(), ".paseo"));
-  const connection = connect(
-    process.env.PASEO_HOME ?? join(homedir(), ".paseo")
-  );
+  const paseoHome = process.env.PASEO_HOME ?? path.join(homedir(), ".paseo");
+  const socket = socketPath(paseoHome);
+  const connection = connect(paseoHome);
   let paseo: Parameters<typeof deliver>[0] | null = null;
 
   // Give every new agent the `peer` MCP server.
   server.before("agent.create", ({ request }, context) => {
-    paseo = context.paseo;
+    ({ paseo } = context);
     return {
       ...request,
       config: {
@@ -30,10 +33,10 @@ export default function contribute(
           // In Paseo.app execPath is Electron, and provider launches strip
           // ELECTRON_RUN_AS_NODE, so ask for Node mode explicitly.
           peer: {
-            type: "stdio",
+            args: ["-e", SHIM_SOURCE, socket],
             command: process.execPath,
-            args: ["-e", SHIM_SOURCE, path],
             env: { ELECTRON_RUN_AS_NODE: "1" },
+            type: "stdio",
           },
         },
       },
@@ -41,17 +44,18 @@ export default function contribute(
   });
   // Reuse the host connection as soon as a hook provides it.
   const capture = (
-    _event: unknown,
-    context: { paseo: Parameters<typeof deliver>[0] }
+    _event: PluginLifecycleEvents["agent.turn_started" | "agent.turn_ended"],
+    context: PluginHookContext
   ) => {
-    paseo = context.paseo;
+    ({ paseo } = context);
   };
   server.on("agent.turn_started", capture);
   server.on("agent.turn_ended", capture);
 
-  const close = listen(path, async (request) => {
-    return deliver(paseo ?? (await connection.get()), request);
-  });
+  const close = listen(
+    socket,
+    async (request) => await deliver(paseo ?? (await connection.get()), request)
+  );
   return async () => {
     close();
     await connection.close();

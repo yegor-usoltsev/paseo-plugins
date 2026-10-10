@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir, userInfo } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 
 export interface SendRequest {
   from: string | null;
@@ -15,45 +15,70 @@ export interface SendResult {
   text: string;
 }
 
+const isFieldBag = (
+  value: unknown
+): value is { from?: unknown; message?: unknown; to?: unknown } =>
+  typeof value === "object" && value !== null;
+
+const isSendRequest = (value: unknown): value is SendRequest => {
+  if (!isFieldBag(value)) {
+    return false;
+  }
+  const { from, message, to } = value;
+  return (
+    (from === null || typeof from === "string") &&
+    typeof to === "string" &&
+    typeof message === "string"
+  );
+};
+
+const parseSendRequest = (body: string): SendRequest => {
+  const request: unknown = JSON.parse(body);
+  if (!isSendRequest(request)) {
+    throw new Error("Invalid peer send request.");
+  }
+  return request;
+};
+
 // One socket per daemon home, short enough for the macOS sun_path limit.
-export function socketPath(paseoHome: string): string {
+export const socketPath = (paseoHome: string): string => {
   const digest = createHash("sha256")
     .update(paseoHome)
     .digest("hex")
     .slice(0, 12);
-  return join(tmpdir(), `paseo-peer-${userInfo().uid}-${digest}.sock`);
-}
+  return path.join(tmpdir(), `paseo-peer-${userInfo().uid}-${digest}.sock`);
+};
 
-export function listen(
-  path: string,
+export const listen = (
+  socket: string,
   handle: (request: SendRequest) => Promise<SendResult>
-): () => void {
-  rmSync(path, { force: true });
-  const server = createServer(
-    (
-      request: import("node:http").IncomingMessage,
-      response: import("node:http").ServerResponse
-    ) => {
-      let body = "";
-      request.on("data", (chunk: Buffer) => (body += chunk));
-      request.on("end", async () => {
-        let result: SendResult;
-        try {
-          result = await handle(JSON.parse(body) as SendRequest);
-        } catch (error) {
-          result = {
-            ok: false,
-            text: error instanceof Error ? error.message : String(error),
-          };
-        }
-        response.setHeader("content-type", "application/json");
-        response.end(JSON.stringify(result));
-      });
-    }
-  );
-  server.listen(path);
+): (() => void) => {
+  rmSync(socket, { force: true });
+  const server = createServer((request, response) => {
+    let body = "";
+    const respond = async () => {
+      let result: SendResult;
+      try {
+        result = await handle(parseSendRequest(body));
+      } catch (error) {
+        result = {
+          ok: false,
+          text: error instanceof Error ? error.message : String(error),
+        };
+      }
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify(result));
+    };
+    request.on("data", (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    request.on("end", () => {
+      void respond();
+    });
+  });
+  server.listen(socket);
   return () => {
     server.close();
-    rmSync(path, { force: true });
+    rmSync(socket, { force: true });
   };
-}
+};

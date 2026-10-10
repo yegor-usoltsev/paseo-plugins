@@ -1,16 +1,15 @@
 // The first line of a peer message names the sender. The format predates this
 // plugin, so messages written by older tooling render the same way.
-const ENVELOPE = /^\[from:([^\]\s]+)\]\r?\n/;
+const ENVELOPE = /^\[from:(?<senderId>[^\]\s]+)\]\r?\n/u;
 
-export function wrap(senderId: string, text: string): string {
-  return `[from:${senderId}]\n${text}`;
-}
+export const wrap = (senderId: string, text: string): string =>
+  `[from:${senderId}]\n${text}`;
 
-export function unwrap(
+export const unwrap = (
   text: string
-): { senderId: string; body: string } | null {
+): { senderId: string; body: string } | null => {
   const match = ENVELOPE.exec(text);
-  return match
-    ? { senderId: match[1], body: text.slice(match[0].length) }
+  return match?.groups
+    ? { body: text.slice(match[0].length), senderId: match.groups.senderId }
     : null;
-}
+};

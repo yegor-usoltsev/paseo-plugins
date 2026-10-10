@@ -1,21 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { outgoingMessage, type ToolCallItem } from "./outgoing.ts";
+import { outgoingMessage } from "./outgoing.ts";
+import type { ToolCallItem } from "./outgoing.ts";
 
 const id = "edd464fe-6761-4d1f-8075-deb619c0d3a1";
 const call = (name: string, status: string, text: string | null) =>
   ({
-    type: "tool_call",
     callId: "c1",
+    detail: {
+      input: { message: "Review abc123.", to: "edd464fe" },
+      output: text === null ? null : { content: [{ text, type: "text" }] },
+      type: "unknown",
+    },
+    error: status === "failed" ? { message: "boom" } : null,
     name,
     status,
-    error: status === "failed" ? { message: "boom" } : null,
-    detail: {
-      type: "unknown",
-      input: { to: "edd464fe", message: "Review abc123." },
-      output: text === null ? null : { content: [{ type: "text", text }] },
-    },
+    type: "tool_call",
   }) as unknown as ToolCallItem;
 
 test("a delivered Codex send names the resolved recipient", () => {
@@ -24,11 +25,11 @@ test("a delivered Codex send names the resolved recipient", () => {
       call("peer.send", "completed", `Delivered to Claude reviewer (${id}).`)
     ),
     {
-      to: "edd464fe",
-      recipientId: id,
       body: "Review abc123.",
-      status: "delivered",
       error: null,
+      recipientId: id,
+      status: "delivered",
+      to: "edd464fe",
     }
   );
 });
@@ -57,18 +58,21 @@ test("other tools are left alone", () => {
 
 test("Claude's wrapped text resolves a successful recipient", () => {
   const item = call("mcp__peer__send", "completed", null);
-  if (item.type !== "tool_call" || item.detail.type !== "unknown")
+  if (item.type !== "tool_call" || item.detail.type !== "unknown") {
     throw new Error("bad fixture");
+  }
   item.detail.output = { output: `Delivered to Claude reviewer (${id}).` };
   assert.equal(outgoingMessage(item)?.recipientId, id);
 });
 
 test("Claude's failed tool result retains its text blocks", () => {
   const item = call("mcp__peer__send", "failed", null);
-  if (item.type !== "tool_call") throw new Error("bad fixture");
+  if (item.type !== "tool_call") {
+    throw new Error("bad fixture");
+  }
   item.error = {
+    content: [{ text: "The peer plugin is unreachable.", type: "text" }],
     is_error: true,
-    content: [{ type: "text", text: "The peer plugin is unreachable." }],
   };
   assert.equal(outgoingMessage(item)?.error, "The peer plugin is unreachable.");
 });
@@ -82,10 +86,11 @@ test("transport errors retain their message", () => {
 
 test("an MCP error result is not successful delivery", () => {
   const item = call("peer.send", "completed", "No matching agent.");
-  if (item.type !== "tool_call" || item.detail.type !== "unknown")
+  if (item.type !== "tool_call" || item.detail.type !== "unknown") {
     throw new Error("bad fixture");
+  }
   item.detail.output = {
-    content: [{ type: "text", text: "No matching agent." }],
+    content: [{ text: "No matching agent.", type: "text" }],
     isError: true,
   };
   assert.equal(outgoingMessage(item)?.status, "failed");
@@ -105,9 +110,10 @@ test("outgoing cards retain whitespace and Unicode for both providers", () => {
     "Финальный мой proposal: 43 lines (668 words vs 575).\n\n  git apply --check\r\n\t👋 café\n";
   for (const name of ["peer.send", "mcp__peer__send"]) {
     const item = call(name, "completed", `Delivered to ${id}.`);
-    if (item.type !== "tool_call" || item.detail.type !== "unknown")
+    if (item.type !== "tool_call" || item.detail.type !== "unknown") {
       throw new Error("bad fixture");
-    item.detail.input = { to: id, message: body };
+    }
+    item.detail.input = { message: body, to: id };
     assert.equal(outgoingMessage(item)?.body, body);
   }
 });

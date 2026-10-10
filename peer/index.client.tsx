@@ -9,54 +9,66 @@ import {
 } from "./client/peer-message";
 import { unwrap } from "./shared/envelope";
 
+const MESSAGE_KIND = "peer-message";
+const OUTGOING_KIND = "peer-outgoing";
+
 export default function contribute(client: PluginClientContext) {
   const cleanups = [
     client.addTimelineTransformer({
-      id: "peer-message",
+      id: MESSAGE_KIND,
       query: { itemType: "user_message" },
       transform({ item }) {
         const message = unwrap(item.text);
-        if (!message) return undefined;
-        return {
-          items: [
-            { type: "plugin", kind: "peer-message", version: 1, data: message },
-          ],
-        };
+        return message
+          ? {
+              items: [
+                {
+                  data: message,
+                  kind: MESSAGE_KIND,
+                  type: "plugin",
+                  version: 1,
+                },
+              ],
+            }
+          : undefined;
       },
     }),
     client.addTimelineRenderer({
-      kind: "peer-message",
-      version: 1,
-      schema: peerMessageSchema,
       Component: PeerMessageCard,
+      kind: MESSAGE_KIND,
+      schema: peerMessageSchema,
+      version: 1,
     }),
     // Shows an agent's own peer.send calls as the messages they are.
     client.addTimelineTransformer({
-      id: "peer-outgoing",
+      id: OUTGOING_KIND,
       query: { itemType: "tool_call" },
       transform({ item }) {
         const message = outgoingMessage(item);
-        if (!message) return undefined;
-        return {
-          items: [
-            {
-              type: "plugin",
-              kind: "peer-outgoing",
-              version: 1,
-              data: { ...message },
-            },
-          ],
-        };
+        return message
+          ? {
+              items: [
+                {
+                  data: { ...message },
+                  kind: OUTGOING_KIND,
+                  type: "plugin",
+                  version: 1,
+                },
+              ],
+            }
+          : undefined;
       },
     }),
     client.addTimelineRenderer({
-      kind: "peer-outgoing",
-      version: 1,
-      schema: outgoingSchema,
       Component: OutgoingMessageCard,
+      kind: OUTGOING_KIND,
+      schema: outgoingSchema,
+      version: 1,
     }),
   ];
   return () => {
-    for (const cleanup of cleanups) cleanup();
+    for (const cleanup of cleanups) {
+      void cleanup();
+    }
   };
 }

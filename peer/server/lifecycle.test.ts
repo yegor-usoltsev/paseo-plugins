@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { request } from "node:http";
+import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
+import { text } from "node:stream/consumers";
 import { test } from "node:test";
 
 import type { PluginServerContext } from "@getpaseo/plugin/server";
@@ -12,7 +15,7 @@ import type { PaseoApi } from "./sdk.ts";
 import { socketPath } from "./socket.ts";
 
 test("a socket send after reload works without any agent event or client RPC", async (t) => {
-  const home = mkdtempSync(join(tmpdir(), "paseo-peer-startup-test-"));
+  const home = mkdtempSync(path.join(tmpdir(), "paseo-peer-startup-test-"));
   const oldHome = process.env.PASEO_HOME;
   process.env.PASEO_HOME = home;
   const recipient = "12345678-1234-1234-1234-123456789abc";
@@ -22,8 +25,8 @@ test("a socket send after reload works without any agent event or client RPC", a
   const api = {
     agents: {
       ref: () => ({
+        current: () => ({ archivedAt: null, id: recipient, title: "receiver" }),
         refresh: async () => {},
-        current: () => ({ id: recipient, title: "receiver", archivedAt: null }),
         send: async (...args: unknown[]) => {
           sent.push(args);
         },
@@ -33,31 +36,30 @@ test("a socket send after reload works without any agent event or client RPC", a
   const stop = contribute(
     { before: () => {}, on: () => {} } as unknown as PluginServerContext,
     () => ({
-      get: async () => api,
       close: async () => {
         closed = true;
       },
+      get: async () => api,
     })
   );
   t.after(async () => {
     await stop();
-    if (oldHome === undefined) delete process.env.PASEO_HOME;
-    else process.env.PASEO_HOME = oldHome;
-    rmSync(home, { recursive: true, force: true });
+    if (oldHome === undefined) {
+      delete process.env.PASEO_HOME;
+    } else {
+      process.env.PASEO_HOME = oldHome;
+    }
+    rmSync(home, { force: true, recursive: true });
     assert.equal(closed, true);
   });
-  const result = await new Promise<{ ok: boolean }>((resolve, reject) => {
-    const req = request(
-      { socketPath: socketPath(home), method: "POST", path: "/send" },
-      (res) => {
-        let body = "";
-        res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => resolve(JSON.parse(body)));
-      }
-    );
-    req.on("error", reject);
-    req.end(JSON.stringify({ from: sender, to: recipient, message: "hello" }));
+  const req = request({
+    method: "POST",
+    path: "/send",
+    socketPath: socketPath(home),
   });
+  req.end(JSON.stringify({ from: sender, message: "hello", to: recipient }));
+  const [response] = (await once(req, "response")) as [IncomingMessage];
+  const result = JSON.parse(await text(response)) as { ok: boolean };
   assert.equal(result.ok, true);
   assert.deepEqual(sent, [
     [`[from:${sender}]\nhello`, { activeTurnBehavior: "steer" }],

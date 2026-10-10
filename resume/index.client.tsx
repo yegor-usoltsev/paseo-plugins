@@ -6,14 +6,14 @@ import { STATUS_KIND, statusSchema } from "./shared/status";
 
 export default function contribute(client: PluginClientContext) {
   const removeRenderer = client.addTimelineRenderer({
-    kind: STATUS_KIND,
-    version: 1,
-    schema: statusSchema,
     Component: ResumeStatusRow,
+    kind: STATUS_KIND,
+    schema: statusSchema,
+    version: 1,
   });
   const removePills = contributePills(client);
   return () => {
-    removeRenderer();
+    void removeRenderer();
     removePills();
   };
 }

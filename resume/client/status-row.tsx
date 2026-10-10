@@ -6,18 +6,26 @@ import type { ResumeStatus } from "../shared/status";
 import { clockTime } from "./format";
 
 const ICONS: Record<ResumeStatus["state"], string> = {
-  scheduled: "AlarmClock",
-  resumed: "Play",
   cancelled: "AlarmClockOff",
   rescheduled: "AlarmClock",
+  resumed: "Play",
+  scheduled: "AlarmClock",
 };
 
 function label({ state, at, basis }: ResumeStatus): string {
   const time = clockTime(new Date(at));
-  if (state === "resumed") return `Resumed after usage limit at ${time}`;
-  if (state === "cancelled") return `Auto-resume cancelled at ${time}`;
-  if (state === "rescheduled") return `Auto-resume rescheduled for ${time}`;
-  if (basis === "retry") return `Resume deferred · retrying at ${time}`;
+  if (state === "resumed") {
+    return `Resumed after usage limit at ${time}`;
+  }
+  if (state === "cancelled") {
+    return `Auto-resume cancelled at ${time}`;
+  }
+  if (state === "rescheduled") {
+    return `Auto-resume rescheduled for ${time}`;
+  }
+  if (basis === "retry") {
+    return `Resume deferred · retrying at ${time}`;
+  }
   return basis === "estimate"
     ? `Usage limit reached · retrying at ${time}`
     : `Usage limit reached · resumes at ${time}`;
@@ -32,35 +40,35 @@ export function ResumeStatusRow({
   return (
     <View
       style={{
-        flexDirection: "row",
         alignItems: "center",
+        flexDirection: "row",
         gap: 8,
-        paddingVertical: 12,
         paddingHorizontal: 16,
+        paddingVertical: 12,
       }}
     >
-      <View style={{ flex: 1, height: 1, backgroundColor: border }} />
+      <View style={{ backgroundColor: border, flex: 1, height: 1 }} />
       <View
         style={{
-          flexDirection: "row",
           alignItems: "center",
-          gap: 8,
+          flexDirection: "row",
           flexShrink: 1,
+          gap: 8,
         }}
       >
         <Icon name={ICONS[item.data.state]} size={12} color={foregroundMuted} />
         <Text
           style={{
             color: foregroundMuted,
-            fontSize: 13,
             flexShrink: 1,
+            fontSize: 13,
             textAlign: "center",
           }}
         >
           {label(item.data)}
         </Text>
       </View>
-      <View style={{ flex: 1, height: 1, backgroundColor: border }} />
+      <View style={{ backgroundColor: border, flex: 1, height: 1 }} />
     </View>
   );
 }
