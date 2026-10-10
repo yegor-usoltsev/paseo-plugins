@@ -20,7 +20,7 @@ Chat:   ── Resumed after usage limit at 4:08 PM ──
 
 ## Install
 
-You need Paseo 0.10.3 or later and npm. GitHub installation prepares the locked runtime dependencies automatically. On the daemon host, run:
+You need Paseo 0.11.2 or later and npm. GitHub installation prepares the locked runtime dependencies automatically. On the daemon host, run:
 
 ```sh
 paseo plugin install github:yegor-usoltsev/paseo-plugins:resume

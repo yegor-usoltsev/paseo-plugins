@@ -1,9 +1,3 @@
-// The MCP server each agent runs over stdio. Providers start it with `node -e`,
-// so it must be self-contained CommonJS. It works out which agent called it and
-// forwards the call to the plugin process over a Unix socket.
-//
-// Claude Code passes PASEO_AGENT_ID to MCP servers; Codex does not, but its
-// per-agent app-server parent process has it in its environment.
 export const SHIM_SOURCE = String.raw`
 const { readFileSync } = require("node:fs");
 const { execFileSync } = require("node:child_process");
@@ -36,8 +30,6 @@ function parentPid(pid) {
   }
 }
 
-// Only the provider process itself: further up sits the daemon, whose
-// environment may carry an unrelated agent ID.
 const caller = process.env.PASEO_AGENT_ID || envAgent(process.ppid) || envAgent(parentPid(process.ppid));
 
 const tool = {
