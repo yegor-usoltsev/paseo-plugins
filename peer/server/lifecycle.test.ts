@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
-import { request } from "node:http";
-import type { IncomingMessage } from "node:http";
+import { IncomingMessage, request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { text } from "node:stream/consumers";
@@ -22,7 +21,7 @@ test("a socket send after reload works without any agent event or client RPC", a
   const sender = "87654321-4321-4321-4321-cba987654321";
   const sent: unknown[][] = [];
   let closed = false;
-  const api = {
+  const fakeApi = {
     agents: {
       ref: () => ({
         current: () => ({ archivedAt: null, id: recipient, title: "receiver" }),
@@ -32,8 +31,13 @@ test("a socket send after reload works without any agent event or client RPC", a
         },
       }),
     },
-  } as unknown as PaseoApi;
+  };
+  // SAFETY: the fake implements only the SDK members these tests exercise.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  const api = fakeApi as unknown as PaseoApi;
   const stop = contribute(
+    // SAFETY: the fake implements only the host registrations the plugin calls.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin host.
     { before: () => {}, on: () => {} } as unknown as PluginServerContext,
     () => ({
       close: async () => {
@@ -58,9 +62,13 @@ test("a socket send after reload works without any agent event or client RPC", a
     socketPath: socketPath(home),
   });
   req.end(JSON.stringify({ from: sender, message: "hello", to: recipient }));
-  const [response] = (await once(req, "response")) as [IncomingMessage];
-  const result = JSON.parse(await text(response)) as { ok: boolean };
-  assert.equal(result.ok, true);
+  const events: unknown[] = await once(req, "response");
+  const [response] = events;
+  assert.ok(response instanceof IncomingMessage);
+  assert.deepEqual(JSON.parse(await text(response)), {
+    ok: true,
+    text: `Delivered to receiver (${recipient}).`,
+  });
   assert.deepEqual(sent, [
     [`[from:${sender}]\nhello`, { activeTurnBehavior: "steer" }],
   ]);

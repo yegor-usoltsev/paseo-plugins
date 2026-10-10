@@ -94,7 +94,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
       ],
     }),
   };
-  const api = {
+  const fakeApi = {
     agents: {
       ref: (id: string) => ({
         get archivedAt() {
@@ -118,22 +118,26 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
       }),
     },
     providers: { listUsage: async () => await behavior.usage() },
-  } as unknown as PaseoApi;
+  };
+  // SAFETY: the fake implements only the SDK members these tests exercise.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  const api = fakeApi as unknown as PaseoApi;
   const rpcs = new Map<string, RpcHandler>();
-  const stop = contribute(
-    {
-      handle: (contract: { name: string }, handler: RpcHandler) =>
-        rpcs.set(contract.name, handler),
-      on: (name: string, handler: HookHandler) => hooks.set(name, handler),
-    } as unknown as PluginServerContext,
-    () => ({
-      close: async () => {},
-      get: async () => {
-        await readiness;
-        return api;
-      },
-    })
-  );
+  const fakeHost = {
+    handle: (contract: { name: string }, handler: RpcHandler) =>
+      rpcs.set(contract.name, handler),
+    on: (name: string, handler: HookHandler) => hooks.set(name, handler),
+  };
+  // SAFETY: the fake implements only the host registrations the plugin calls.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin host.
+  const host = fakeHost as unknown as PluginServerContext;
+  const stop = contribute(host, () => ({
+    close: async () => {},
+    get: async () => {
+      await readiness;
+      return api;
+    },
+  }));
   t.after(() => {
     void stop();
     if (oldHome === undefined) {

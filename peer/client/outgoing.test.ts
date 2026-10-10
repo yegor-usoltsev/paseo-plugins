@@ -5,8 +5,8 @@ import { outgoingMessage } from "./outgoing.ts";
 import type { ToolCallItem } from "./outgoing.ts";
 
 const id = "edd464fe-6761-4d1f-8075-deb619c0d3a1";
-const call = (name: string, status: string, text: string | null) =>
-  ({
+const call = (name: string, status: string, text: string | null) => {
+  const item = {
     callId: "c1",
     detail: {
       input: { message: "Review abc123.", to: "edd464fe" },
@@ -17,7 +17,11 @@ const call = (name: string, status: string, text: string | null) =>
     name,
     status,
     type: "tool_call",
-  }) as unknown as ToolCallItem;
+  };
+  // SAFETY: the fixture builds only the tool-call fields outgoingMessage reads.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- Fixtures use free-form status strings.
+  return item as unknown as ToolCallItem;
+};
 
 test("a delivered Codex send names the resolved recipient", () => {
   assert.deepEqual(

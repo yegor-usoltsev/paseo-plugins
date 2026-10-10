@@ -11,8 +11,9 @@ const fixture = (
   archivedAt: string | null = null
 ) => {
   const cursors: unknown[] = [];
-  const sent: unknown[] = [];
-  const api = {
+  const sent: { id: string; options: PaseoAgentSendOptions; text: string }[] =
+    [];
+  const fakeApi = {
     agents: {
       list: async ({ page }: { page: { cursor?: string } }) => {
         cursors.push(page.cursor);
@@ -32,7 +33,10 @@ const fixture = (
         },
       }),
     },
-  } as unknown as PaseoApi;
+  };
+  // SAFETY: the fake implements only the SDK members these tests exercise.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the host SDK type.
+  const api = fakeApi as unknown as PaseoApi;
   return { api, cursors, sent };
 };
 
@@ -54,7 +58,7 @@ test("delivery preserves Unicode, whitespace, and numeric text verbatim", async 
   const message =
     "Финальный мой proposal: 43 lines (668 words vs 575).\r\n\r\n  git apply --check\n\tPaths: /tmp/a b/changes.patch\nEmoji: 👋; Unicode: café\n";
   await deliver(h.api, { from: "sender", message, to: id });
-  const [sent] = h.sent as { text: string }[];
+  const [sent] = h.sent;
   assert.equal(sent.text, `[from:sender]\n${message}`);
   assert.deepEqual(unwrap(sent.text), { body: message, senderId: "sender" });
 });

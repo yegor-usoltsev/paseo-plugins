@@ -23,6 +23,12 @@ export default defineConfig({
       },
     },
     {
+      files: ["**/*.tsx"],
+      rules: {
+        "func-style": ["error", "declaration"],
+      },
+    },
+    {
       // Paseo loads a plugin's entry points through their default export.
       files: ["*/index.client.{ts,tsx}", "*/index.server.{ts,tsx}"],
       rules: {
@@ -30,21 +36,16 @@ export default defineConfig({
       },
     },
     {
-      files: ["**/*.tsx"],
+      // These tests stub the host's async SDK methods with in-memory fakes
+      // that have nothing to await.
+      files: [
+        "peer/server/deliver.test.ts",
+        "peer/server/lifecycle.test.ts",
+        "resume/client/pending-monitor.test.ts",
+        "resume/server/lifecycle.test.ts",
+      ],
       rules: {
-        "func-style": ["error", "declaration"],
-      },
-    },
-    {
-      // Tests stand in-memory fakes in for the host SDK. A fake implements
-      // only the members under test, so it is cast to the SDK type, and its
-      // async methods have nothing to await.
-      files: ["**/*.test.ts"],
-      rules: {
-        "anti-slop/no-chained-type-assertions": "off",
-        "anti-slop/require-safety-comment-for-type-assertion": "off",
         "require-await": "off",
-        "typescript/no-unsafe-type-assertion": "off",
       },
     },
   ],

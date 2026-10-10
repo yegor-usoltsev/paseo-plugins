@@ -64,7 +64,7 @@ const setup = (t: TestContext, observeFails = false) => {
   }[] = [];
   let observed: AgentObserver | undefined;
   let signal!: AbortSignal;
-  const client = {
+  const fakeClient = {
     addComposerPill: (input: PluginComposerPillContribution) => {
       const pill = {
         agentId: input.agentId,
@@ -117,7 +117,10 @@ const setup = (t: TestContext, observeFails = false) => {
       queries += 1;
       return await behavior.rpc();
     },
-  } as unknown as PluginClientContext;
+  };
+  // SAFETY: the fake implements only the client members the monitor uses.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion -- A partial fake stands in for the plugin client.
+  const client = fakeClient as unknown as PluginClientContext;
   const monitor = createPendingMonitor(client, () => null);
   t.after(() => {
     monitor.stop();
