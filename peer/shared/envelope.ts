@@ -6,7 +6,11 @@ export function wrap(senderId: string, text: string): string {
   return `[from:${senderId}]\n${text}`;
 }
 
-export function unwrap(text: string): { senderId: string; body: string } | null {
+export function unwrap(
+  text: string
+): { senderId: string; body: string } | null {
   const match = ENVELOPE.exec(text);
-  return match ? { senderId: match[1], body: text.slice(match[0].length) } : null;
+  return match
+    ? { senderId: match[1], body: text.slice(match[0].length) }
+    : null;
 }

@@ -19,8 +19,12 @@ export class PendingStore {
   private readonly entries: Map<string, PendingResume>;
 
   constructor(paseoHome: string) {
-    const stateHome = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state");
-    const digest = createHash("sha256").update(paseoHome).digest("hex").slice(0, 12);
+    const stateHome =
+      process.env.XDG_STATE_HOME || join(homedir(), ".local", "state");
+    const digest = createHash("sha256")
+      .update(paseoHome)
+      .digest("hex")
+      .slice(0, 12);
     this.path = join(stateHome, "paseo-resume", `${digest}.json`);
     this.entries = new Map(Object.entries(this.read()));
   }
@@ -51,8 +55,12 @@ export class PendingStore {
     } catch {
       return {};
     }
-    const valid = Object.entries(data && typeof data === "object" ? data : {}).filter(
-      ([, entry]) => typeof entry?.resumeAt === "string" && !Number.isNaN(Date.parse(entry.resumeAt)),
+    const valid = Object.entries(
+      data && typeof data === "object" ? data : {}
+    ).filter(
+      ([, entry]) =>
+        typeof entry?.resumeAt === "string" &&
+        !Number.isNaN(Date.parse(entry.resumeAt))
     );
     return Object.fromEntries(valid) as Record<string, PendingResume>;
   }
@@ -60,7 +68,10 @@ export class PendingStore {
   private write(): void {
     mkdirSync(dirname(this.path), { recursive: true });
     const temporary = `${this.path}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(Object.fromEntries(this.entries), null, 2)}\n`);
+    writeFileSync(
+      temporary,
+      `${JSON.stringify(Object.fromEntries(this.entries), null, 2)}\n`
+    );
     renameSync(temporary, this.path);
   }
 }

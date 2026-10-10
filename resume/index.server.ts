@@ -1,13 +1,28 @@
-import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
-import type { PluginHookAgent, PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
-import { limitMessage, providerWindows, retryTimeFromMessage, retryTimeFromUsage } from "./server/limit.ts";
+
+import type {
+  PluginHookAgent,
+  PluginServerContext,
+  PluginTurnOutcome,
+} from "@getpaseo/plugin/server";
+
 import { connectDaemon } from "./server/connection.ts";
+import {
+  limitMessage,
+  providerWindows,
+  retryTimeFromMessage,
+  retryTimeFromUsage,
+} from "./server/limit.ts";
 import { PendingStore } from "./server/pending.ts";
+import type { PaseoAgentSendOptions, PaseoApi } from "./server/sdk.ts";
 import { cancelResumeRpc, listPendingRpc, resumeNowRpc } from "./shared/rpc.ts";
-import { STATUS_KIND, STATUS_ROW_ID, type ResumeStatus } from "./shared/status.ts";
+import {
+  STATUS_KIND,
+  STATUS_ROW_ID,
+  type ResumeStatus,
+} from "./shared/status.ts";
 
 const RESUME_PROMPT =
   "Your previous turn stopped on the provider usage limit, which has now reset. Continue where you left off.";
@@ -26,7 +41,10 @@ const STEER = { activeTurnBehavior: "steer" } as PaseoAgentSendOptions;
 
 type Outcome = "sent" | "skipped" | "retrying" | "busy";
 
-export default function contribute(server: PluginServerContext, connect = connectDaemon) {
+export default function contribute(
+  server: PluginServerContext,
+  connect = connectDaemon
+) {
   const paseoHome = process.env.PASEO_HOME ?? join(homedir(), ".paseo");
   const connection = connect(paseoHome);
   const pending = new PendingStore(paseoHome);
@@ -36,33 +54,62 @@ export default function contribute(server: PluginServerContext, connect = connec
   // still waiting on the usage lookup can tell it is stale.
   const epochs = new Map<string, number>();
   // Agents this plugin has just prompted, mapped to their parent.
-  const resuming = new Map<string, { parentId: string | null; rowId?: string; started: boolean; turnId: string | null }>();
+  const resuming = new Map<
+    string,
+    {
+      parentId: string | null;
+      rowId?: string;
+      started: boolean;
+      turnId: string | null;
+    }
+  >();
   // Plugin code reaches the SDK only through hook contexts.
   let paseo: PaseoApi | null = null;
   let disposed = false;
   // One attempt per agent at a time, so "Resume now" and the timer cannot both send.
-  const inflight = new Map<string, { entry: ReturnType<PendingStore["get"]>; promise: Promise<Outcome> }>();
+  const inflight = new Map<
+    string,
+    { entry: ReturnType<PendingStore["get"]>; promise: Promise<Outcome> }
+  >();
 
   const epochOf = (agentId: string) => epochs.get(agentId) ?? 0;
 
   // Each limit stop gets its own row, which later reads resumed or cancelled.
-  async function showStatus(agentId: string, rowId: string | undefined, status: ResumeStatus): Promise<void> {
+  async function showStatus(
+    agentId: string,
+    rowId: string | undefined,
+    status: ResumeStatus
+  ): Promise<void> {
     await paseo?.agents
       .ref(agentId)
-      .timeline.append({ type: "plugin", id: rowId ?? STATUS_ROW_ID, kind: STATUS_KIND, version: 1, data: status })
-      .catch((error: unknown) => console.error(`Cannot show resume status for ${agentId}`, error));
+      .timeline.append({
+        type: "plugin",
+        id: rowId ?? STATUS_ROW_ID,
+        kind: STATUS_KIND,
+        version: 1,
+        data: status,
+      })
+      .catch((error: unknown) =>
+        console.error(`Cannot show resume status for ${agentId}`, error)
+      );
   }
 
   function arm(agentId: string, resumeAt: string): void {
     clearTimeout(timers.get(agentId));
     const delay = Math.max(0, Date.parse(resumeAt) - Date.now());
-    const fire = () => void (Date.now() < Date.parse(resumeAt) ? arm(agentId, resumeAt) : resume(agentId));
+    const fire = () =>
+      void (Date.now() < Date.parse(resumeAt)
+        ? arm(agentId, resumeAt)
+        : resume(agentId));
     timers.set(agentId, setTimeout(fire, Math.min(delay, MAX_TIMEOUT_MS)));
   }
 
   function armUsageCheck(agentId: string): void {
     clearTimeout(usageTimers.get(agentId));
-    usageTimers.set(agentId, setTimeout(() => void recheckUsage(agentId), USAGE_REFRESH_MS));
+    usageTimers.set(
+      agentId,
+      setTimeout(() => void recheckUsage(agentId), USAGE_REFRESH_MS)
+    );
   }
 
   async function recheckUsage(agentId: string): Promise<void> {
@@ -70,10 +117,11 @@ export default function contribute(server: PluginServerContext, connect = connec
     const entry = pending.get(agentId);
     if (!entry || entry.basis !== "estimate" || disposed) return;
     const epoch = epochOf(agentId);
-    const current = () => !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
+    const current = () =>
+      !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
     {
       try {
-        const api = paseo ?? await connection.get();
+        const api = paseo ?? (await connection.get());
         if (!current()) return;
         const handle = api.agents.ref(agentId);
         await handle.refresh();
@@ -86,12 +134,21 @@ export default function contribute(server: PluginServerContext, connect = connec
         const usage = await api.providers.listUsage();
         if (!current()) return;
         const provider = agent.provider.split("/")[0];
-        const reset = retryTimeFromUsage(providerWindows(usage.providers, provider), new Date());
+        const reset = retryTimeFromUsage(
+          providerWindows(usage.providers, provider),
+          new Date()
+        );
         if (reset) {
-          const resumeAt = new Date(reset.getTime() + AFTER_RESET_MS).toISOString();
+          const resumeAt = new Date(
+            reset.getTime() + AFTER_RESET_MS
+          ).toISOString();
           pending.set(agentId, { ...entry, resumeAt, basis: "reset" });
           arm(agentId, resumeAt);
-          await showStatus(agentId, entry.rowId, { state: "scheduled", at: resumeAt, basis: "reset" });
+          await showStatus(agentId, entry.rowId, {
+            state: "scheduled",
+            at: resumeAt,
+            basis: "reset",
+          });
           return;
         }
       } catch (error) {
@@ -114,7 +171,10 @@ export default function contribute(server: PluginServerContext, connect = connec
     invalidate(agentId);
     const entry = pending.get(agentId);
     if (pending.delete(agentId) && show) {
-      void showStatus(agentId, entry?.rowId, { state: "cancelled", at: new Date().toISOString() });
+      void showStatus(agentId, entry?.rowId, {
+        state: "cancelled",
+        at: new Date().toISOString(),
+      });
     }
   }
 
@@ -125,9 +185,15 @@ export default function contribute(server: PluginServerContext, connect = connec
       if (running.entry === entry) return running.promise;
       // A resumed turn may hit its limit again before the first send returns.
       // Its next timer must wait for that send, then attempt the new job.
-      return running.promise.then(() => !disposed && pending.get(agentId) === entry ? resume(agentId) : "skipped");
+      return running.promise.then(() =>
+        !disposed && pending.get(agentId) === entry
+          ? resume(agentId)
+          : "skipped"
+      );
     }
-    const attempt = attemptResume(agentId).finally(() => inflight.delete(agentId));
+    const attempt = attemptResume(agentId).finally(() =>
+      inflight.delete(agentId)
+    );
     inflight.set(agentId, { entry, promise: attempt });
     return attempt;
   }
@@ -139,10 +205,16 @@ export default function contribute(server: PluginServerContext, connect = connec
     const entry = pending.get(agentId);
     if (!entry || disposed) return "skipped";
     const epoch = epochOf(agentId);
-    const current = () => !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
-    const attempt = { parentId: entry.parentAgentId, rowId: entry.rowId, started: false, turnId: null as string | null };
+    const current = () =>
+      !disposed && epochOf(agentId) === epoch && pending.get(agentId) === entry;
+    const attempt = {
+      parentId: entry.parentAgentId,
+      rowId: entry.rowId,
+      started: false,
+      turnId: null as string | null,
+    };
     try {
-      const api = paseo ?? await connection.get();
+      const api = paseo ?? (await connection.get());
       if (!current()) return "skipped";
       const handle = api.agents.ref(agentId);
       await handle.refresh();
@@ -156,7 +228,11 @@ export default function contribute(server: PluginServerContext, connect = connec
         const retryAt = new Date(Date.now() + RETRY_MS).toISOString();
         pending.set(agentId, { ...entry, resumeAt: retryAt, basis: "retry" });
         arm(agentId, retryAt);
-        await showStatus(agentId, entry.rowId, { state: "scheduled", at: retryAt, basis: "retry" });
+        await showStatus(agentId, entry.rowId, {
+          state: "scheduled",
+          at: retryAt,
+          basis: "retry",
+        });
         return "busy";
       }
       resuming.set(agentId, attempt);
@@ -166,18 +242,27 @@ export default function contribute(server: PluginServerContext, connect = connec
       if (current()) pending.delete(agentId);
       return "sent";
     } catch (error) {
-      if (resuming.get(agentId) === attempt && !attempt.started) resuming.delete(agentId);
+      if (resuming.get(agentId) === attempt && !attempt.started)
+        resuming.delete(agentId);
       if (!current()) return "skipped";
       console.error(`Cannot resume agent ${agentId}; retrying later`, error);
       const retryAt = new Date(Date.now() + RETRY_MS).toISOString();
       pending.set(agentId, { ...entry, resumeAt: retryAt, basis: "retry" });
       arm(agentId, retryAt);
-      await showStatus(agentId, entry.rowId, { state: "scheduled", at: retryAt, basis: "retry" });
+      await showStatus(agentId, entry.rowId, {
+        state: "scheduled",
+        at: retryAt,
+        basis: "retry",
+      });
       return "retrying";
     }
   }
 
-  async function schedule(agent: PluginHookAgent, message: string, api: PaseoApi): Promise<void> {
+  async function schedule(
+    agent: PluginHookAgent,
+    message: string,
+    api: PaseoApi
+  ): Promise<void> {
     // A later limit stop supersedes any earlier lookup or delivery, while
     // ordinary messages leave the scheduled continuation intact.
     const epoch = invalidate(agent.id);
@@ -187,7 +272,10 @@ export default function contribute(server: PluginServerContext, connect = connec
     let resetAt: Date | null = null;
     try {
       const usage = await api.providers.listUsage();
-      resetAt = retryTimeFromUsage(providerWindows(usage.providers, provider), now);
+      resetAt = retryTimeFromUsage(
+        providerWindows(usage.providers, provider),
+        now
+      );
     } catch (error) {
       console.error("Cannot read provider usage", error);
     }
@@ -195,27 +283,54 @@ export default function contribute(server: PluginServerContext, connect = connec
     if (disposed || epochOf(agent.id) !== epoch) return;
     resetAt ??= retryTimeFromMessage(message, now);
     const basis = !resetAt || resetAt <= now ? "estimate" : "reset";
-    const resumeAt = basis === "estimate"
-      ? new Date(now.getTime() + FALLBACK_MS)
-      : new Date(resetAt!.getTime() + AFTER_RESET_MS);
+    const resumeAt =
+      basis === "estimate"
+        ? new Date(now.getTime() + FALLBACK_MS)
+        : new Date(resetAt!.getTime() + AFTER_RESET_MS);
     const rowId = `resume-${randomUUID()}`;
-    pending.set(agent.id, { resumeAt: resumeAt.toISOString(), parentAgentId: agent.parentAgentId, basis, rowId });
+    pending.set(agent.id, {
+      resumeAt: resumeAt.toISOString(),
+      parentAgentId: agent.parentAgentId,
+      basis,
+      rowId,
+    });
     arm(agent.id, resumeAt.toISOString());
     if (basis === "estimate") armUsageCheck(agent.id);
     if (previous?.rowId) {
-      await showStatus(agent.id, previous.rowId, { state: "rescheduled", at: resumeAt.toISOString(), basis });
-      if (disposed || epochOf(agent.id) !== epoch || pending.get(agent.id)?.rowId !== rowId) return;
+      await showStatus(agent.id, previous.rowId, {
+        state: "rescheduled",
+        at: resumeAt.toISOString(),
+        basis,
+      });
+      if (
+        disposed ||
+        epochOf(agent.id) !== epoch ||
+        pending.get(agent.id)?.rowId !== rowId
+      )
+        return;
     }
-    await showStatus(agent.id, rowId, { state: "scheduled", at: resumeAt.toISOString(), basis });
+    await showStatus(agent.id, rowId, {
+      state: "scheduled",
+      at: resumeAt.toISOString(),
+      basis,
+    });
   }
 
   // A parent can miss the child's finish notification after a limit stop
   // (getpaseo/paseo#3875), so tell it directly in paseo-peer's envelope.
-  async function notifyParent(parentId: string, childId: string, outcome: PluginTurnOutcome, api: PaseoApi) {
+  async function notifyParent(
+    parentId: string,
+    childId: string,
+    outcome: PluginTurnOutcome,
+    api: PaseoApi
+  ) {
     const parent = api.agents.ref(parentId);
     await parent.refresh();
     if (!parent.current() || parent.archivedAt) return;
-    const result = outcome.kind === "failed" ? `failed: ${outcome.error.message}` : "finished";
+    const result =
+      outcome.kind === "failed"
+        ? `failed: ${outcome.error.message}`
+        : "finished";
     const text = `[from:${childId}]\nI resumed after the provider usage limit reset, and my turn has now ${result}.`;
     await parent.send(text, STEER);
   }
@@ -227,32 +342,47 @@ export default function contribute(server: PluginServerContext, connect = connec
       attempt.started = true;
       attempt.turnId = turnId;
       cancel(agent.id, false);
-      void showStatus(agent.id, attempt.rowId, { state: "resumed", at: new Date().toISOString() });
+      void showStatus(agent.id, attempt.rowId, {
+        state: "resumed",
+        at: new Date().toISOString(),
+      });
     } else {
       // A message turn must not inherit our resume's parent notification.
       resuming.delete(agent.id);
     }
   });
 
-  server.on("agent.turn_ended", async ({ agent, turnId, outcome, timeline }, context) => {
-    paseo = context.paseo;
-    const attempt = resuming.get(agent.id);
-    const wasResumed = attempt?.started && attempt.turnId === turnId;
-    if (attempt && !attempt.started) resuming.delete(agent.id);
-    if (wasResumed) resuming.delete(agent.id);
-    const message = limitMessage(agent.provider, outcome, timeline);
-    if (message) {
-      await schedule(agent, message, context.paseo);
-    } else {
-      const entry = pending.get(agent.id);
-      if (outcome.kind !== "canceled" && entry && (entry.basis === "retry" || Date.parse(entry.resumeAt) <= Date.now())) {
-        arm(agent.id, new Date().toISOString());
-      }
-      if (wasResumed && attempt.parentId && outcome.kind !== "canceled") {
-        await notifyParent(attempt.parentId, agent.id, outcome, context.paseo);
+  server.on(
+    "agent.turn_ended",
+    async ({ agent, turnId, outcome, timeline }, context) => {
+      paseo = context.paseo;
+      const attempt = resuming.get(agent.id);
+      const wasResumed = attempt?.started && attempt.turnId === turnId;
+      if (attempt && !attempt.started) resuming.delete(agent.id);
+      if (wasResumed) resuming.delete(agent.id);
+      const message = limitMessage(agent.provider, outcome, timeline);
+      if (message) {
+        await schedule(agent, message, context.paseo);
+      } else {
+        const entry = pending.get(agent.id);
+        if (
+          outcome.kind !== "canceled" &&
+          entry &&
+          (entry.basis === "retry" || Date.parse(entry.resumeAt) <= Date.now())
+        ) {
+          arm(agent.id, new Date().toISOString());
+        }
+        if (wasResumed && attempt.parentId && outcome.kind !== "canceled") {
+          await notifyParent(
+            attempt.parentId,
+            agent.id,
+            outcome,
+            context.paseo
+          );
+        }
       }
     }
-  });
+  );
 
   server.on("agent.archived", ({ agent }, context) => {
     paseo = context.paseo;
@@ -275,26 +405,55 @@ export default function contribute(server: PluginServerContext, connect = connec
   server.handle(resumeNowRpc, async ({ agentId, jobId }, context) => {
     paseo = context.paseo;
     const entry = pending.get(agentId);
-    if (!entry) return { ok: false, message: "No auto-resume is pending for this agent." };
-    if ((entry.rowId ?? entry.resumeAt) !== jobId) return { ok: false, message: "The resume schedule changed. Review the latest schedule and try again." };
+    if (!entry)
+      return {
+        ok: false,
+        message: "No auto-resume is pending for this agent.",
+      };
+    if ((entry.rowId ?? entry.resumeAt) !== jobId)
+      return {
+        ok: false,
+        message:
+          "The resume schedule changed. Review the latest schedule and try again.",
+      };
     clearTimeout(timers.get(agentId));
     switch (await resume(agentId)) {
       case "sent":
         return { ok: true, message: "Resumed." };
       case "retrying":
-        return { ok: false, message: "Could not reach the agent; the next attempt is in five minutes." };
+        return {
+          ok: false,
+          message:
+            "Could not reach the agent; the next attempt is in five minutes.",
+        };
       case "busy":
-        return { ok: false, message: "The agent is working; auto-resume remains scheduled until its turn ends." };
+        return {
+          ok: false,
+          message:
+            "The agent is working; auto-resume remains scheduled until its turn ends.",
+        };
       default:
-        return { ok: false, message: "The agent is unavailable or the resume schedule changed." };
+        return {
+          ok: false,
+          message: "The agent is unavailable or the resume schedule changed.",
+        };
     }
   });
 
   server.handle(cancelResumeRpc, ({ agentId, jobId }, context) => {
     paseo = context.paseo;
     const entry = pending.get(agentId);
-    if (!entry) return { ok: false, message: "No auto-resume is pending for this agent." };
-    if ((entry.rowId ?? entry.resumeAt) !== jobId) return { ok: false, message: "The resume schedule changed. Review the latest schedule and try again." };
+    if (!entry)
+      return {
+        ok: false,
+        message: "No auto-resume is pending for this agent.",
+      };
+    if ((entry.rowId ?? entry.resumeAt) !== jobId)
+      return {
+        ok: false,
+        message:
+          "The resume schedule changed. Review the latest schedule and try again.",
+      };
     cancel(agentId, true);
     return { ok: true, message: "Auto-resume cancelled." };
   });

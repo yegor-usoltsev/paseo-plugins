@@ -3,7 +3,10 @@ import type { PendingEntry } from "../shared/rpc.ts";
 // Times are shown in the client's own time zone: the daemon may run elsewhere.
 
 export function clockTime(at: Date, now = new Date()): string {
-  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = at.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
   if (at.toDateString() === now.toDateString()) return time;
   return `${at.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, ${time}`;
 }
