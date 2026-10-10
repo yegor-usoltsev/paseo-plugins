@@ -5,9 +5,12 @@
     "peer",
     "resume"
   ],
+  "type": "module",
   "scripts": {
     "test": "npm test --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "lint": "tsc -p peer && tsc -p resume && ultracite check",
+    "lint:fix": "tsc -p peer && tsc -p resume && ultracite fix",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.10.3",
@@ -15,9 +18,18 @@
     "@types/node": "^24.19.1",
     "@types/react": "~19.2.0",
     "@types/ws": "^8.18.1",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "eslint-plugin-github": "6.1.2",
+    "eslint-plugin-sonarjs": "4.2.2",
+    "husky": "9.1.7",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "oxlint-plugin-react-doctor": "0.9.17",
+    "oxlint-tsgolint": "7.0.2003",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "typescript": "^5.9.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "ultracite": "7.12.4",
     "zod": "^4.4.3"
   }
 }
