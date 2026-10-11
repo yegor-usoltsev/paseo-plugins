@@ -9,13 +9,11 @@
   "scripts": {
     "test": "npm test --workspaces",
     "lint": "npm run typecheck --workspaces && ultracite check",
-    "lint:fix": "npm run typecheck --workspaces && ultracite fix",
-    "prepare": "husky"
+    "lint:fix": "npm run typecheck --workspaces && ultracite fix"
   },
   "devDependencies": {
     "eslint-plugin-github": "6.1.2",
     "eslint-plugin-sonarjs": "4.2.2",
-    "husky": "9.1.7",
     "oxfmt": "0.72.0",
     "oxlint": "1.87.0",
     "oxlint-plugin-react-doctor": "0.9.17",
