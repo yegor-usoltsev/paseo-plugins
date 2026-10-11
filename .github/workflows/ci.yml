@@ -17,6 +17,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -24,3 +26,14 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+
+  prek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: j178/prek-action@v3.0.1
+        env:
+          # The verify job runs the lint script on both platforms.
+          SKIP: lint
