@@ -1,7 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-import { basisSchema } from "./status.ts";
+export const basisSchema = z.enum(["reset", "estimate", "retry"]);
 
 export const pendingEntrySchema = z.object({
   agentId: z.string(),
@@ -9,6 +9,7 @@ export const pendingEntrySchema = z.object({
   basis: basisSchema,
   jobId: z.string(),
   resumeAt: z.string(),
+  workspaceId: z.string().nullable(),
 });
 
 export type PendingEntry = z.output<typeof pendingEntrySchema>;

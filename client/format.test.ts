@@ -10,6 +10,7 @@ const entry = {
   basis: "reset" as const,
   jobId: "job",
   resumeAt: now.toISOString(),
+  workspaceId: "background-workspace",
 };
 
 void test("a passed deadline does not claim dispatch has started", () => {

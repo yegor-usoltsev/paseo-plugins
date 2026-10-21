@@ -10,7 +10,17 @@
   "packageRules": [
     {
       "description": "Plugin dependencies follow the paseo plugin init template.",
-      "matchFileNames": ["*/package.json"],
+      "matchFileNames": ["package.json"],
+      "matchPackageNames": [
+        "@getpaseo/*",
+        "@tanstack/react-query",
+        "@types/node",
+        "@types/react",
+        "react",
+        "react-native",
+        "typescript",
+        "zod"
+      ],
       "enabled": false
     }
   ]

@@ -1,6 +1,7 @@
-import type { PluginTurnOutcome } from "@getpaseo/plugin/server";
-
-import type { AgentTimelineItem } from "./sdk.ts";
+import type {
+  PluginTurnOutcome,
+  PluginLifecycleEvents,
+} from "@getpaseo/plugin/server";
 
 const CODEX_FAILURE = /^you['’]ve hit your usage limit(?:[.!]|$)/iu;
 const NOTICE =
@@ -18,7 +19,7 @@ const FAILURE_PATTERNS = new Map([
 export const limitMessage = (
   provider: string,
   outcome: PluginTurnOutcome,
-  timeline: readonly AgentTimelineItem[]
+  timeline: PluginLifecycleEvents["agent.turn_ended"]["timeline"]
 ): string | null => {
   const [family] = provider.split("/");
   if (outcome.kind === "failed") {

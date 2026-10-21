@@ -16,6 +16,7 @@ const entry: PendingEntry = {
   basis: "reset",
   jobId: "job",
   resumeAt: "2026-10-03T13:00:00Z",
+  workspaceId: "background-workspace",
 };
 const flush = async (ticks = 30): Promise<void> => {
   if (ticks > 0) {
@@ -32,17 +33,7 @@ const deferred = <T>() => {
   return { promise, resolve: settle };
 };
 
-interface AgentObserver {
-  snapshot: (snapshot: {
-    entries: { agent: { id: string; workspaceId: string } }[];
-  }) => void;
-  update: (message: {
-    payload: { agentId: string; kind: "remove" };
-    type: "agent_update";
-  }) => void;
-}
-
-const setup = (t: TestContext, observeFails = false) => {
+const setup = (t: TestContext) => {
   t.mock.timers.enable({
     apis: ["Date", "setTimeout", "setInterval"],
     now: new Date("2026-10-03T12:00:00Z"),
@@ -55,15 +46,12 @@ const setup = (t: TestContext, observeFails = false) => {
       }),
   };
   let queries = 0;
-  const fetched: string[] = [];
   const pills: {
     agentId: string;
     workspaceId: string;
     label: string | undefined;
     removed: boolean;
   }[] = [];
-  let observed: AgentObserver | undefined;
-  let signal!: AbortSignal;
   const fakeClient = {
     addComposerPill: (input: PluginComposerPillContribution) => {
       const pill = {
@@ -82,38 +70,6 @@ const setup = (t: TestContext, observeFails = false) => {
         },
       };
     },
-    paseo: {
-      agents: {
-        list: async (options: { signal: AbortSignal }) => {
-          ({ signal } = options);
-          if (observeFails) {
-            throw new Error("observation failed");
-          }
-          return await Promise.resolve({
-            subscription: {
-              subscribe: (handlers: AgentObserver) => {
-                observed = handlers;
-                handlers.snapshot({
-                  entries: Array.from({ length: 200 }, (_, i) => ({
-                    agent: {
-                      id: `recent-${i}`,
-                      workspaceId: "recent-workspace",
-                    },
-                  })),
-                });
-              },
-            },
-          });
-        },
-        ref: (id: string) => ({
-          refresh: async () => {
-            fetched.push(id);
-            await Promise.resolve();
-          },
-          workspaceId: "old-workspace",
-        }),
-      },
-    },
     rpc: async () => {
       queries += 1;
       return await behavior.rpc();
@@ -127,32 +83,18 @@ const setup = (t: TestContext, observeFails = false) => {
   });
   return {
     behavior,
-    fetched,
     monitor,
-    observed: () => {
-      assert.ok(observed);
-      return observed;
-    },
     pills,
     queries: () => queries,
-    signal: () => signal,
   };
 };
 
-void test("a restored agent beyond the first directory page gets its controls", async (t) => {
+void test("pending jobs get controls without observing the agent directory", async (t) => {
   const h = setup(t);
   await flush();
-  assert.deepEqual(h.fetched, [entry.agentId]);
   assert.equal(h.pills.length, 1);
   assert.equal(h.pills[0].agentId, entry.agentId);
-  assert.equal(h.pills[0].workspaceId, "old-workspace");
-});
-
-void test("pending controls load even if agent observation fails", async (t) => {
-  const h = setup(t, true);
-  await flush();
-  assert.equal(h.pills.length, 1);
-  assert.equal(h.monitor.getSnapshot().unavailable, false);
+  assert.equal(h.pills[0].workspaceId, "background-workspace");
 });
 
 void test("failed queries keep the confirmed schedule and mark controls unavailable", async (t) => {
@@ -191,17 +133,12 @@ void test("stopping during a query cannot recreate controls", async (t) => {
   const gate = deferred<{ entries: PendingEntry[] }>();
   h.behavior.rpc = async () => await gate.promise;
   const query = h.monitor.refresh();
-  h.observed().update({
-    payload: { agentId: entry.agentId, kind: "remove" },
-    type: "agent_update",
-  });
   const queries = h.queries();
   h.monitor.stop();
   gate.resolve({ entries: [entry] });
   await query;
   t.mock.timers.tick(60_000);
   await flush();
-  assert.equal(h.signal().aborted, true);
   assert.equal(h.queries(), queries);
   assert.equal(h.pills.length, 1);
   assert.equal(h.pills[0].removed, true);

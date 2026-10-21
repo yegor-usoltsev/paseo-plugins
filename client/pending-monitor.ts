@@ -10,7 +10,6 @@ import type { PendingEntry } from "../shared/rpc.ts";
 import { pillLabel } from "./format.ts";
 
 const POLL_MS = 30_000;
-const SETTLE_MS = 3000;
 
 interface Snapshot {
   entries: ReadonlyMap<string, PendingEntry>;
@@ -21,11 +20,8 @@ export const createPendingMonitor = (
   client: PluginClientContext,
   Content: ComponentType<PluginButtonContentProps>
 ) => {
-  const lifetime = new AbortController();
-  const workspaces = new Map<string, string>();
   const pills = new Map<string, PluginButtonRegistration>();
   const listeners = new Set<() => void>();
-  const settleTimers = new Set<ReturnType<typeof setTimeout>>();
   let snapshot: Snapshot = { entries: new Map(), unavailable: false };
   let stopped = false;
   let polling: Promise<void> | null = null;
@@ -46,7 +42,7 @@ export const createPendingMonitor = (
         ? "Resume status unavailable"
         : pillLabel(entry);
       const pill = pills.get(entry.agentId);
-      const workspaceId = workspaces.get(entry.agentId) ?? "";
+      const workspaceId = entry.workspaceId ?? "";
       if (pill !== undefined) {
         pill.update({ label });
       } else if (workspaceId !== "") {
@@ -71,32 +67,9 @@ export const createPendingMonitor = (
     }
   };
 
-  const locate = async (entry: PendingEntry): Promise<void> => {
-    try {
-      const handle = client.paseo.agents.ref(entry.agentId);
-      await handle.refresh();
-      const workspaceId = handle.workspaceId ?? "";
-      if (!stopped && workspaceId !== "") {
-        workspaces.set(entry.agentId, workspaceId);
-      }
-    } catch (error) {
-      if (!stopped) {
-        console.error(
-          `Cannot locate auto-resume agent ${entry.agentId}`,
-          error
-        );
-      }
-    }
-  };
-
   const poll = async (): Promise<void> => {
     try {
       const { entries: list } = await client.rpc(listPendingRpc, {});
-      await Promise.all(
-        list.flatMap((entry) =>
-          workspaces.has(entry.agentId) ? [] : [locate(entry)]
-        )
-      );
       if (!stopped) {
         publish(new Map(list.map((entry) => [entry.agentId, entry])), false);
       }
@@ -125,60 +98,6 @@ export const createPendingMonitor = (
     await polling;
   };
 
-  const track = (agent: { id: string; workspaceId?: string | null }) => {
-    const workspaceId = agent.workspaceId ?? "";
-    if (workspaceId === "") {
-      workspaces.delete(agent.id);
-    } else {
-      workspaces.set(agent.id, workspaceId);
-    }
-  };
-
-  const observe = async (): Promise<void> => {
-    try {
-      const { subscription } = await client.paseo.agents.list({
-        signal: lifetime.signal,
-        subscribe: {},
-      });
-      if (stopped) {
-        return;
-      }
-      subscription.subscribe({
-        snapshot: ({ entries: list }) => {
-          if (stopped) {
-            return;
-          }
-          for (const { agent } of list) {
-            track(agent);
-          }
-          void refresh();
-        },
-        update: (message) => {
-          if (stopped || message.type !== "agent_update") {
-            return;
-          }
-          const update = message.payload;
-          if (update.kind === "remove") {
-            workspaces.delete(update.agentId);
-          } else {
-            track(update.agent);
-          }
-          void refresh();
-          const timer = setTimeout(() => {
-            settleTimers.delete(timer);
-            void refresh();
-          }, SETTLE_MS);
-          settleTimers.add(timer);
-        },
-      });
-    } catch (error) {
-      if (!stopped) {
-        console.error("Agent observation failed", error);
-      }
-    }
-  };
-
-  void observe();
   void refresh();
   const timer = setInterval(() => {
     void refresh();
@@ -195,11 +114,7 @@ export const createPendingMonitor = (
     },
     stop() {
       stopped = true;
-      lifetime.abort();
       clearInterval(timer);
-      for (const settleTimer of settleTimers) {
-        clearTimeout(settleTimer);
-      }
       for (const pill of pills.values()) {
         pill.remove();
       }

@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 
+import type { PaseoAgentSendOptions, PaseoApi } from "@getpaseo/client";
 import type {
   PluginServerContext,
   PluginLifecycleEvents,
@@ -13,7 +14,6 @@ import type {
 import contribute from "../index.server.ts";
 import type { PendingEntry } from "../shared/rpc.ts";
 import { PendingStore } from "./pending.ts";
-import type { PaseoAgentSendOptions, PaseoApi } from "./sdk.ts";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 const agent = {
@@ -22,7 +22,7 @@ const agent = {
   parentAgentId: "parent",
   provider: "claude",
   title: "test",
-  workspaceId: null,
+  workspaceId: "background-workspace",
 };
 const notice = "You've hit your session limit · resets 3:40pm (UTC)";
 const flush = async (ticks = 30): Promise<void> => {
@@ -67,13 +67,16 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
   const store = () => new PendingStore(root);
   if (restored) {
     store().set(agent.id, {
+      basis: "reset",
       parentAgentId: agent.parentAgentId,
       resumeAt: NOW.toISOString(),
+      rowId: "restored-job",
+      workspaceId: "background-workspace",
     });
   }
   const hooks = new Map<string, HookHandler>();
   const sent: { id: string; text: string; options: unknown }[] = [];
-  const rows: { rowId: string; state: string }[] = [];
+
   let snapshot: {
     status: string;
     archivedAt: string | null;
@@ -110,12 +113,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
             await behavior.send();
           }
         },
-        timeline: {
-          append: async (row: { id: string; data: { state: string } }) => {
-            rows.push({ rowId: row.id, state: row.data.state });
-            await Promise.resolve();
-          },
-        },
+        workspaceId: "background-workspace",
       }),
     },
     providers: { listUsage: async () => await behavior.usage() },
@@ -190,7 +188,7 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
   const act = async (name: string, input: RpcInput) => {
     const entry = store().get(agent.id);
     const result = await rpc(name, {
-      jobId: entry?.rowId ?? entry?.resumeAt,
+      jobId: entry?.rowId,
       ...input,
     });
     assert.ok("ok" in result);
@@ -208,7 +206,6 @@ const setup = (t: TestContext, restored = false, readiness?: Promise<void>) => {
     emit,
     limited,
     listPending,
-    rows,
     sent,
     setSnapshot: (value: typeof snapshot) => {
       snapshot = value;
@@ -234,7 +231,10 @@ for (const action of ["archive", "stop"] as const) {
     await h[action]();
     gate.resolve();
     await schedule;
-    assert.equal(h.store().get(agent.id), undefined);
+    assert.equal(
+      h.store().get(agent.id)?.basis,
+      action === "stop" ? "estimate" : undefined
+    );
     await h.tick();
     assert.equal(h.sent.length, 0);
   });
@@ -340,7 +340,10 @@ void test("a resumed failure reaches the parent without interrupting it", async 
   });
   assert.equal(h.sent[1].id, "parent");
   assert.match(h.sent[1].text, /failed: Connection reset/u);
-  assert.deepEqual(h.sent[1].options, { activeTurnBehavior: "steer" });
+  assert.deepEqual(h.sent[1].options, {
+    activeTurnBehavior: "steer",
+    sourceAgentId: agent.id,
+  });
 });
 
 void test("a replacement turn does not inherit the resumed turn notification", async (t) => {
@@ -423,6 +426,7 @@ void test("the pending list reports the resume time and whether it is a guess", 
         basis: "reset",
         jobId: h.stored().rowId,
         resumeAt: new Date(+NOW + 121_000).toISOString(),
+        workspaceId: "background-workspace",
       },
     ],
   });
@@ -499,10 +503,6 @@ void test("an estimated job rechecks expired usage and retains its job ID", asyn
   assert.equal(h.store().get(agent.id)?.resumeAt, "2026-10-03T15:02:00.000Z");
   assert.equal(h.store().get(agent.id)?.basis, "reset");
   assert.equal(h.store().get(agent.id)?.rowId, original.rowId);
-  assert.deepEqual(h.rows.at(-1), {
-    rowId: original.rowId,
-    state: "scheduled",
-  });
 });
 
 void test("cancelling during a usage recheck cannot restore the estimated job", async (t) => {
@@ -602,10 +602,6 @@ void test("a message turn preserves the original continuation after its reply", 
     turnId: "message",
   });
   assert.deepEqual(h.store().get(agent.id), pending);
-  assert.deepEqual(
-    h.rows.map((row) => row.state),
-    ["scheduled"]
-  );
   h.behavior.send = async () => {
     await h.start();
   };
@@ -770,18 +766,13 @@ void test("Stop does not immediately restart a message turn", async (t) => {
   assert.equal(h.sent.length, 1);
 });
 
-void test("another limit reschedules the old row without cancelling auto-resume", async (t) => {
+void test("another limit replaces the job without cancelling auto-resume", async (t) => {
   const h = setup(t);
   await h.limited();
   const first = h.stored();
   await h.start("message");
   await h.limited();
   assert.notEqual(h.store().get(agent.id)?.rowId, first.rowId);
-  assert.deepEqual(
-    h.rows.map((row) => row.state),
-    ["scheduled", "rescheduled", "scheduled"]
-  );
-  assert.equal(h.rows[1].rowId, first.rowId);
 });
 
 void test("an earlier usage lookup cannot overwrite a later limit episode", async (t) => {
@@ -802,24 +793,6 @@ void test("an earlier usage lookup cannot overwrite a later limit episode", asyn
   gate.resolve();
   await earlier;
   assert.deepEqual(h.store().get(agent.id), latest);
-});
-
-void test("each limit stop keeps its own chat row", async (t) => {
-  const h = setup(t);
-  h.behavior.send = async () => {
-    await h.start();
-  };
-  await h.limited();
-  await h.tick();
-  await h.tick(1000);
-  await h.limited();
-  const [first, resumed, second] = h.rows;
-  assert.deepEqual(
-    [first.state, resumed.state, second.state],
-    ["scheduled", "resumed", "scheduled"]
-  );
-  assert.equal(resumed.rowId, first.rowId);
-  assert.notEqual(second.rowId, first.rowId);
 });
 
 void test("resume now during a timed attempt sends one prompt", async (t) => {
